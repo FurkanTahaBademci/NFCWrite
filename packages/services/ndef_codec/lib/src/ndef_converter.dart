@@ -254,6 +254,7 @@ abstract final class NdefConverter {
       emails: _mapMany(lineMap, 'EMAIL'),
       address: _nullIfEmpty(_decodeAddress(_firstValue(lineMap, 'ADR'))),
       url: _nullIfEmpty(_mapFirst(lineMap, 'URL')),
+      socialUrls: _mapMany(lineMap, 'URL').skip(1).toList(growable: false),
       note: _nullIfEmpty(_mapFirst(lineMap, 'NOTE')),
     );
   }
@@ -283,6 +284,9 @@ abstract final class NdefConverter {
     }
     if (_hasValue(content.url)) {
       lines.add('URL:${_escapeVCard(content.url!)}');
+    }
+    for (final socialUrl in content.socialUrls.where(_hasValue)) {
+      lines.add('URL:${_escapeVCard(socialUrl)}');
     }
     if (_hasValue(content.note)) {
       lines.add('NOTE:${_escapeVCard(content.note!)}');

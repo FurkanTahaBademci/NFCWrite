@@ -519,6 +519,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
   late final TextEditingController _title;
   late final TextEditingController _address;
   late final TextEditingController _url;
+  late final TextEditingController _socialUrls;
   late final TextEditingController _note;
 
   @override
@@ -534,6 +535,9 @@ class _VCardInputPageState extends State<_VCardInputPage> {
     _title = TextEditingController(text: initial?.title ?? '');
     _address = TextEditingController(text: initial?.address ?? '');
     _url = TextEditingController(text: initial?.url ?? '');
+    _socialUrls = TextEditingController(
+      text: (initial?.socialUrls ?? const <String>[]).join('\n'),
+    );
     _note = TextEditingController(text: initial?.note ?? '');
   }
 
@@ -548,6 +552,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
     _title.dispose();
     _address.dispose();
     _url.dispose();
+    _socialUrls.dispose();
     _note.dispose();
     super.dispose();
   }
@@ -648,6 +653,18 @@ class _VCardInputPageState extends State<_VCardInputPage> {
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(
+            controller: _socialUrls,
+            textInputAction: TextInputAction.newline,
+            keyboardType: TextInputType.multiline,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Sosyal medya linkleri',
+              hintText: 'https://instagram.com/kullanici\nhttps://linkedin.com/in/kullanici',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
             controller: _note,
             minLines: 2,
             maxLines: 4,
@@ -688,6 +705,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
       title: _nullIfBlank(_title.text),
       address: _nullIfBlank(_address.text),
       url: _nullIfBlank(_url.text),
+      socialUrls: _splitLines(_socialUrls.text),
       note: _nullIfBlank(_note.text),
     );
 
@@ -702,6 +720,14 @@ class _VCardInputPageState extends State<_VCardInputPage> {
   String? _firstOrNull(List<String>? values) {
     if (values == null || values.isEmpty) return null;
     return values.first;
+  }
+
+  List<String> _splitLines(String value) {
+    return value
+        .split(RegExp(r'[\r\n]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
   }
 }
 

@@ -76,6 +76,10 @@ void main() {
         title: 'Developer',
         address: 'Istanbul, Turkiye',
         url: 'https://ornek.com',
+        socialUrls: const <String>[
+          'https://instagram.com/furkan',
+          'https://linkedin.com/in/furkan',
+        ],
         note: 'Test notu',
       );
 

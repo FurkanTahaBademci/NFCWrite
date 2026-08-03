@@ -86,9 +86,11 @@ final class VCardContent extends NdefContent {
     List<String> emails = const <String>[],
     this.address,
     this.url,
+     List<String> socialUrls = const <String>[],
     this.note,
   }) : phones = List.unmodifiable(phones),
-       emails = List.unmodifiable(emails);
+       emails = List.unmodifiable(emails),
+       socialUrls = List.unmodifiable(socialUrls);
 
   final String formattedName;
   final String? familyName;
@@ -99,6 +101,7 @@ final class VCardContent extends NdefContent {
   final List<String> emails;
   final String? address;
   final String? url;
+  final List<String> socialUrls;
   final String? note;
 
   @override
@@ -119,6 +122,7 @@ final class VCardContent extends NdefContent {
       const ListEquality<String>().equals(other.emails, emails) &&
       other.address == address &&
       other.url == url &&
+      const ListEquality<String>().equals(other.socialUrls, socialUrls) &&
       other.note == note;
 
   @override
@@ -132,6 +136,7 @@ final class VCardContent extends NdefContent {
     const ListEquality<String>().hash(emails),
     address,
     url,
+    const ListEquality<String>().hash(socialUrls),
     note,
   );
 
