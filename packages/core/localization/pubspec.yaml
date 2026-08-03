@@ -1,0 +1,22 @@
+name: localization
+description: >-
+  Uygulama cevirileri (TR/EN) ve dil yonetimi. Kod uretimi (gen-l10n)
+  KULLANILMAZ — bkz. .claude/docs/adr/ADR-0003-no-codegen.md
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  nfc_core: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

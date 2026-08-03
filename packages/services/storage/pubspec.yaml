@@ -1,0 +1,24 @@
+name: storage
+description: >-
+  Kalici veri katmani: tarama gecmisi, etiket yedekleri (dump), kayit
+  sablonlari ve uygulama ayarlari. nfc_core repository sozlesmelerini uygular.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  nfc_core: ^0.1.0
+  path: ^1.9.1
+  shared_preferences: ^2.5.5
+  shared_utils: ^0.1.0
+  sqflite: ^2.4.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -1,0 +1,22 @@
+name: tag_ops
+description: >-
+  Dusuk seviye etiket islemleri: NTAG21x/Ultralight/MIFARE Classic/NfcV komut
+  setleri, sifre (PWD_AUTH), kilitleme, bicimlendirme, bellek dokumu, sayac.
+  Transport'u disaridan (DI) alir; saf Dart kalir ve birim testi yazilabilir.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  collection: ^1.19.0
+  meta: ^1.15.0
+  ndef_codec: ^0.1.0
+  nfc_core: ^0.1.0
+  shared_utils: ^0.1.0
+
+dev_dependencies:
+  test: ^1.25.0

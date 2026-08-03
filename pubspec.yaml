@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# NFC Toolkit - Monorepo workspace root
+#
+# Bu dosya kod barindirmaz. Sadece Dart "pub workspace" uyelerini tanimlar.
+# Tum paketler tek bir pubspec.lock ve tek .dart_tool ile cozulur.
+#
+# Mimari: micro-package (modular monolith). Her paket bagimsiz yayinlanabilir
+# bir birim gibi davranir; disari sadece lib/<paket_adi>.dart barrel dosyasi
+# uzerinden API acar. Detay: .claude/docs/01-architecture.md
+# ---------------------------------------------------------------------------
+name: nfc_toolkit_workspace
+description: NFC Toolkit monorepo - advanced NFC reader, writer and tag manager.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+workspace:
+  # Kabuk uygulama (composition root)
+  - apps/nfc_toolkit
+
+  # Cekirdek: sozlesmeler, tipler, tasarim sistemi, ceviriler
+  - packages/core/nfc_core
+  - packages/core/shared_utils
+  - packages/core/design_system
+  - packages/core/localization
+
+  # Servisler: platform ve protokol katmani
+  - packages/services/nfc_transport
+  - packages/services/ndef_codec
+  - packages/services/tag_ops
+  - packages/services/storage
+
+  # Ozellikler: her biri kendi UI + state katmanini tasir
+  - packages/features/feature_read
+  - packages/features/feature_write
+  - packages/features/feature_tools
+  - packages/features/feature_history
+  - packages/features/feature_settings
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  test: ^1.25.0

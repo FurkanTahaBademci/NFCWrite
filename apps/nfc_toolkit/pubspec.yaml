@@ -1,0 +1,43 @@
+name: nfc_toolkit
+description: "NFC Toolkit - gelismis NFC okuyucu, yazici ve etiket yoneticisi."
+publish_to: 'none'
+
+# version -> Android versionName, +build -> versionCode
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- Cekirdek ---
+  design_system: ^0.1.0
+  localization: ^0.1.0
+  nfc_core: ^0.1.0
+  shared_utils: ^0.1.0
+
+  # --- Servisler: SADECE composition root bunlari import eder ---
+  ndef_codec: ^0.1.0
+  nfc_transport: ^0.1.0
+  storage: ^0.1.0
+  tag_ops: ^0.1.0
+
+  # --- Ozellikler ---
+  feature_history: ^0.1.0
+  feature_read: ^0.1.0
+  feature_settings: ^0.1.0
+  feature_tools: ^0.1.0
+  feature_write: ^0.1.0
+  flutter_riverpod: ^3.4.2
+  go_router: ^17.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

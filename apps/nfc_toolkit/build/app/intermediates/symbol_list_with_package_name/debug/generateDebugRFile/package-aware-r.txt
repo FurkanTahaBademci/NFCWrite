@@ -1,0 +1,6 @@
+com.furkan.nfc_toolkit
+drawable launch_background
+mipmap ic_launcher
+style LaunchTheme
+style NormalTheme
+xml nfc_tech_filter

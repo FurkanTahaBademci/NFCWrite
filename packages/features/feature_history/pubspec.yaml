@@ -1,0 +1,23 @@
+name: feature_history
+description: Gecmis ve yedekler - taranan etiket kayitlari, dump arsivi, disa/ice aktarma.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  design_system: ^0.1.0
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.4.2
+  go_router: ^17.3.0
+  localization: ^0.1.0
+  nfc_core: ^0.1.0
+  shared_utils: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -1,0 +1,297 @@
+import 'package:nfc_core/nfc_core.dart';
+import 'package:nfc_core/testing.dart';
+import 'package:shared_utils/shared_utils.dart';
+import 'package:tag_ops/tag_ops.dart';
+import 'package:test/test.dart';
+
+/// NTAG213'un gercek `GET_VERSION` cevabi.
+final _ntag213Version = hexToBytes('0004040201000F03');
+
+/// NTAG215'in gercek `GET_VERSION` cevabi.
+final _ntag215Version = hexToBytes('000404020100 1103'.replaceAll(' ', ''));
+
+FakeTagHandle _ntagTag(String versionHex) => FakeTagHandle(
+  uid: hexToBytes('04A1B2C3D4E580'),
+  rules: [
+    FakeTransceiveRule(commandHex: '60', response: hexToBytes(versionHex)),
+  ],
+);
+
+void main() {
+  const operations = TagOperationsImpl();
+
+  group('Komut olusturucular', () {
+    test('GET_VERSION', () {
+      expect(bytesToHex(NtagCommands.getVersion()), '60');
+    });
+
+    test('READ', () {
+      expect(bytesToHex(NtagCommands.read(0x04)), '3004');
+    });
+
+    test('FAST_READ', () {
+      expect(bytesToHex(NtagCommands.fastRead(0x04, 0x27)), '3A0427');
+    });
+
+    test('FAST_READ ters aralik reddedilir', () {
+      expect(() => NtagCommands.fastRead(0x10, 0x04), throwsArgumentError);
+    });
+
+    test('WRITE', () {
+      expect(
+        bytesToHex(NtagCommands.write(0x29, hexToBytes('000000FF'))),
+        'A229000000FF',
+      );
+    });
+
+    test('WRITE yanlis uzunlukta veriyi reddeder', () {
+      expect(
+        () => NtagCommands.write(0x04, hexToBytes('0102')),
+        throwsArgumentError,
+      );
+    });
+
+    test('PWD_AUTH', () {
+      expect(
+        bytesToHex(NtagCommands.passwordAuth(hexToBytes('FFFFFFFF'))),
+        '1BFFFFFFFF',
+      );
+    });
+
+    test('READ_CNT ve READ_SIG', () {
+      expect(bytesToHex(NtagCommands.readCounter()), '3902');
+      expect(bytesToHex(NtagCommands.readSignature()), '3C00');
+    });
+  });
+
+  group('Yonga tanimlama', () {
+    test('NTAG213 tanimlanir', () async {
+      final result = await operations.identify(_ntagTag('0004040201000F03'));
+
+      expect(result, isA<Ok<TagIdentity>>());
+      final identity = (result as Ok<TagIdentity>).value;
+      expect(identity.family, TagChipFamily.ntag213);
+      expect(identity.displayName, 'NTAG213');
+      expect(identity.userBytes, 144);
+      expect(identity.supportsPassword, isTrue);
+    });
+
+    test('NTAG215 tanimlanir', () async {
+      final result = await operations.identify(_ntagTag('0004040201001103'));
+      final identity = (result as Ok<TagIdentity>).value;
+
+      expect(identity.family, TagChipFamily.ntag215);
+      expect(identity.userBytes, 504);
+    });
+
+    test('NTAG216 tanimlanir', () async {
+      final result = await operations.identify(_ntagTag('0004040201001303'));
+      final identity = (result as Ok<TagIdentity>).value;
+
+      expect(identity.family, TagChipFamily.ntag216);
+      expect(identity.userBytes, 888);
+    });
+
+    test('uretici UID`nin ilk byte`indan cozulur', () async {
+      final result = await operations.identify(_ntagTag('0004040201000F03'));
+      final identity = (result as Ok<TagIdentity>).value;
+
+      expect(identity.manufacturer, TagManufacturer.nxp);
+    });
+
+    test('GET_VERSION desteklenmezse teknolojiden tahmin edilir', () async {
+      // Kural tanimlanmadi -> transceive hata dondurur.
+      final tag = FakeTagHandle(uid: hexToBytes('04A1B2C3'));
+      final result = await operations.identify(tag);
+
+      expect(result, isA<Ok<TagIdentity>>());
+      expect(
+        (result as Ok<TagIdentity>).value.family,
+        TagChipFamily.mifareUltralight,
+      );
+    });
+
+    test('GET_VERSION komutu gercekten gonderilir', () async {
+      final tag = _ntagTag('0004040201000F03');
+      await operations.identify(tag);
+
+      expect(tag.sentCommands.map(bytesToHex), contains('60'));
+    });
+  });
+
+  group('Yerlesim tablosu', () {
+    test('NTAG213 yapilandirma sayfalari', () {
+      const layout = NtagLayouts.ntag213;
+      expect(layout.configPage0, 0x29);
+      expect(layout.configPage1, 0x2A);
+      expect(layout.passwordPage, 0x2B);
+      expect(layout.packPage, 0x2C);
+      expect(layout.dynamicLockPage, 0x28);
+    });
+
+    test('NTAG216 yapilandirma sayfalari', () {
+      const layout = NtagLayouts.ntag216;
+      expect(layout.configPage0, 0xE3);
+      expect(layout.packPage, 0xE6);
+    });
+
+    test('kullanici alani sinirlari', () {
+      expect(NtagLayouts.ntag213.isUserPage(0x04), isTrue);
+      expect(NtagLayouts.ntag213.isUserPage(0x27), isTrue);
+      expect(NtagLayouts.ntag213.isUserPage(0x28), isFalse);
+      expect(NtagLayouts.ntag213.isUserPage(0x03), isFalse);
+    });
+  });
+
+  group('Yapilandirma cozumlemesi', () {
+    test('korumasiz varsayilan', () {
+      final config = ConfigParser.parseConfig(
+        cfg0: hexToBytes('000000FF'),
+        cfg1: hexToBytes('00000000'),
+      );
+
+      expect(config.auth0, 0xFF);
+      expect(config.isPasswordProtected, isFalse);
+      expect(config.configLocked, isFalse);
+      expect(config.authLimit, 0);
+    });
+
+    test('sifre korumali, okuma+yazma, AUTHLIM 5', () {
+      final config = ConfigParser.parseConfig(
+        // AUTH0 = 0x04
+        cfg0: hexToBytes('00000004'),
+        // ACCESS = 0b1000_0101 -> PROT=1, AUTHLIM=5
+        cfg1: hexToBytes('85000000'),
+      );
+
+      expect(config.isPasswordProtected, isTrue);
+      expect(config.protectionScope, PasswordProtectionScope.readAndWrite);
+      expect(config.authLimit, 5);
+      expect(config.isReadProtected, isTrue);
+    });
+
+    test('CFGLCK okunur', () {
+      final config = ConfigParser.parseConfig(
+        cfg0: hexToBytes('000000FF'),
+        cfg1: hexToBytes('40000000'),
+      );
+      expect(config.configLocked, isTrue);
+    });
+
+    test('cozumleme ve olusturma cift yonlu', () {
+      const original = NtagConfig(
+        auth0: 0x10,
+        protectionScope: PasswordProtectionScope.readAndWrite,
+        configLocked: false,
+        authLimit: 3,
+        counterEnabled: true,
+        counterPasswordProtected: false,
+        mirrorMode: MirrorMode.uid,
+        mirrorPage: 0x06,
+        mirrorByte: 2,
+        strongModulation: false,
+      );
+
+      final roundTrip = ConfigParser.parseConfig(
+        cfg0: ConfigParser.buildCfg0(original),
+        cfg1: ConfigParser.buildCfg1(original),
+      );
+
+      expect(roundTrip, original);
+    });
+  });
+
+  group('Kilit cozumlemesi', () {
+    test('kilitsiz etiket', () {
+      final status = ConfigParser.parseLocks(
+        staticLock: hexToBytes('0000'),
+        layout: NtagLayouts.ntag213,
+        capabilityContainer: hexToBytes('E1101200'),
+      );
+
+      expect(status.lockedPages, isEmpty);
+      expect(status.permanentlyReadOnly, isFalse);
+    });
+
+    test('CC kilidi ve sayfa kilitleri okunur', () {
+      // LOCK0 = 0b0001_1000 -> bit4 (sayfa 4) + bit3 (CC/sayfa 3)
+      final status = ConfigParser.parseLocks(
+        staticLock: hexToBytes('1800'),
+        layout: NtagLayouts.ntag213,
+        capabilityContainer: hexToBytes('E1101200'),
+      );
+
+      expect(status.capabilityContainerLocked, isTrue);
+      expect(status.lockedPages, containsAll([3, 4]));
+    });
+
+    test('CC erisim byte`i 0x0F ise salt-okunur', () {
+      final status = ConfigParser.parseLocks(
+        staticLock: hexToBytes('0000'),
+        layout: NtagLayouts.ntag213,
+        capabilityContainer: hexToBytes('E110120F'),
+      );
+
+      expect(status.permanentlyReadOnly, isTrue);
+    });
+  });
+
+  group('Guvenlik kapisi', () {
+    test('baska etiket icin verilen onay reddedilir', () async {
+      final tag = _ntagTag('0004040201000F03');
+      final wrongAck = DangerAck.forTest(targetUidHex: 'DEADBEEF');
+
+      final result = await operations.eraseNdef(tag, ack: wrongAck);
+
+      expect(result, isA<Err<void>>());
+      expect((result as Err<void>).failure, isA<InvalidArgument>());
+    });
+
+    test('dogru etiket icin onay kabul edilir', () async {
+      final tag = _ntagTag('0004040201000F03');
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+
+      final result = await operations.eraseNdef(tag, ack: ack);
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.lastWrittenNdef?.isEmpty, isTrue);
+    });
+
+    test('guvenli islem icin DangerAck uretilemez', () {
+      expect(
+        () => DangerAck.userConfirmed(
+          risk: OperationRisk.safe,
+          operationId: 'x',
+          targetUidHex: '04',
+          backupTaken: false,
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('Sayac okuma', () {
+    test('3 byte little-endian cozulur', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        rules: [
+          FakeTransceiveRule(
+            commandHex: '3902',
+            // 0x000201 little-endian -> 0x010200 = 66048
+            response: hexToBytes('000201'),
+          ),
+        ],
+      );
+
+      final result = await operations.readCounter(tag);
+      expect(result, isA<Ok<int>>());
+      expect((result as Ok<int>).value, 0x010200);
+    });
+  });
+
+  // Kullanilmayan sabitleri analiz uyarisi vermesin diye referansla.
+  test('ornek surum dizileri gecerli', () {
+    expect(_ntag213Version.length, 8);
+    expect(_ntag215Version.length, 8);
+  });
+}

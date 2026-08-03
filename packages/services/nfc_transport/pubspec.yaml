@@ -1,0 +1,23 @@
+name: nfc_transport
+description: >-
+  Platform NFC adaptoru. nfc_manager paketini sarmalar, oturum (session)
+  yasam dongusunu yonetir ve nfc_core sozlesmelerini uygular.
+  Uygulamanin geri kalani bu paketin tiplerini DOGRUDAN gormez.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  nfc_core: ^0.1.0
+  nfc_manager: ^4.2.1
+  shared_utils: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

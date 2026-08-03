@@ -1,0 +1,16 @@
+name: nfc_core
+description: Sozlesmeler, alan (domain) varliklari ve hata tipleri. Saf Dart, Flutter bagimliligi yok.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  collection: ^1.19.0
+  meta: ^1.15.0
+
+dev_dependencies:
+  test: ^1.25.0
