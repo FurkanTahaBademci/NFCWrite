@@ -1,6 +1,8 @@
 package com.furkan.nfc_toolkit
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -34,6 +36,13 @@ class MainActivity : FlutterActivity() {
                     openNfcSettings()
                     result.success(null)
                 }
+                "canInstallUnknownApps" -> {
+                    result.success(canInstallUnknownApps())
+                }
+                "openInstallUnknownAppsSettings" -> {
+                    openInstallUnknownAppsSettings()
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -56,6 +65,36 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(action).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return
+            }
+        }
+    }
+
+    private fun canInstallUnknownApps(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+    }
+
+    private fun openInstallUnknownAppsSettings() {
+        val candidates = mutableListOf<Intent>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            candidates += Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        candidates += Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        for (intent in candidates) {
             if (intent.resolveActivity(packageManager) != null) {
                 startActivity(intent)
                 return

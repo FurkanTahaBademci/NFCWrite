@@ -1,0 +1,8 @@
+{
+  "version": "0.1.1",
+  "buildNumber": 2,
+  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.1/nfc_toolkit-v0.1.1+2.apk",
+  "forceUpdate": false,
+  "sha256": "962c99931073fd8c83b433d51623f8c591a94645d5d4d1d9959378cfdda86897",
+  "releaseNotes": "- OTA guncelleme eklendi\n- Kararlilik iyilestirmeleri"
+}
