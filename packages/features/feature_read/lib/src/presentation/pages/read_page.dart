@@ -17,7 +17,9 @@ class ReadPage extends ConsumerStatefulWidget {
 }
 
 class _ReadPageState extends ConsumerState<ReadPage> {
-  static const MethodChannel _systemChannel = MethodChannel('nfc_toolkit/system');
+  static const MethodChannel _systemChannel = MethodChannel(
+    'nfc_toolkit/system',
+  );
 
   @override
   void initState() {

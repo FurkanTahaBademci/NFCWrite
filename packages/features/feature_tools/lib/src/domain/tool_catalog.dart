@@ -86,6 +86,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.content,
       risk: RiskLevel.caution,
       taskId: 'T4.15',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'erase_tag',
@@ -105,6 +106,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.content,
       risk: RiskLevel.warning,
       taskId: 'T4.16',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'restore_dump',
@@ -114,6 +116,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.content,
       risk: RiskLevel.warning,
       taskId: 'T4.17',
+      implemented: true,
     ),
 
     // --- Yapılandırma ---
@@ -155,6 +158,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
       taskId: 'T4.25',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'configure_counter',
@@ -164,6 +168,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
       taskId: 'T4.26',
+      implemented: true,
     ),
 
     // --- Geri alınamaz ---

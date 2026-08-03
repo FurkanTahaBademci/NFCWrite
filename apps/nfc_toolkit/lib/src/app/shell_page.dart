@@ -20,7 +20,9 @@ class ShellPage extends StatefulWidget {
 }
 
 class _ShellPageState extends State<ShellPage> {
-  static const MethodChannel _systemChannel = MethodChannel('nfc_toolkit/system');
+  static const MethodChannel _systemChannel = MethodChannel(
+    'nfc_toolkit/system',
+  );
 
   late final UpdateService _updateService = UpdateService();
   bool _hasCheckedForUpdate = false;

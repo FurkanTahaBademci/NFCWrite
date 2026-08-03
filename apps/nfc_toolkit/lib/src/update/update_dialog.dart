@@ -134,7 +134,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       _isBusy = true;
       _progress = 0;
       _error = null;
-        _status = 'APK indiriliyor...';
+      _status = 'APK indiriliyor...';
     });
 
     try {

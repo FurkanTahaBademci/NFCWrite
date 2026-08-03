@@ -52,7 +52,14 @@ final class WriteState {
 }
 
 /// Yazma akisinin evresi.
-enum WritePhase { editing, probingTag, waitingForTag, writing, success, failure }
+enum WritePhase {
+  editing,
+  probingTag,
+  waitingForTag,
+  writing,
+  success,
+  failure,
+}
 
 /// Yazma ekraninin denetleyicisi.
 ///

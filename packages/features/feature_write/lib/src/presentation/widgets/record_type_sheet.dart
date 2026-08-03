@@ -16,8 +16,10 @@ abstract final class RecordTypeSheet {
       case TextContent(:final text):
         return Navigator.of(context).push<NdefContent>(
           MaterialPageRoute(
-            builder: (_) =>
-                _RecordInputPage(config: _EditorConfig.text(), initialValue: text),
+            builder: (_) => _RecordInputPage(
+              config: _EditorConfig.text(),
+              initialValue: text,
+            ),
           ),
         );
       case UriContent(:final uri):
@@ -79,15 +81,24 @@ abstract final class RecordTypeSheet {
 
     const instagramPrefix = 'https://instagram.com/';
     if (uri.startsWith(instagramPrefix)) {
-      return _EditorLaunch(_EditorConfig.instagram(), uri.substring(instagramPrefix.length));
+      return _EditorLaunch(
+        _EditorConfig.instagram(),
+        uri.substring(instagramPrefix.length),
+      );
     }
 
     if (uri.startsWith('bitcoin:')) {
-      return _EditorLaunch(_EditorConfig.bitcoin(), uri.substring('bitcoin:'.length));
+      return _EditorLaunch(
+        _EditorConfig.bitcoin(),
+        uri.substring('bitcoin:'.length),
+      );
     }
 
     if (uri.startsWith('ethereum:')) {
-      return _EditorLaunch(_EditorConfig.ethereum(), uri.substring('ethereum:'.length));
+      return _EditorLaunch(
+        _EditorConfig.ethereum(),
+        uri.substring('ethereum:'.length),
+      );
     }
 
     return _EditorLaunch(_EditorConfig.url(), uri);

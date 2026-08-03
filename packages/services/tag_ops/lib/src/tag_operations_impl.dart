@@ -440,7 +440,32 @@ final class TagOperationsImpl implements TagOperations {
   Future<Result<void>> factoryReset(
     NfcTagHandle tag, {
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.16'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    final layoutResult = await _resolveLayout(tag);
+    if (layoutResult case Err(:final failure)) return Err(failure);
+    final layout = (layoutResult as Ok<NtagLayout>).value;
+
+    if (layout.family == TagChipFamily.unknown || layout.totalPages <= 0) {
+      return const Err(
+        TagNotSupported(detail: 'Bu etiketin fabrika sıfırlaması desteklenmiyor'),
+      );
+    }
+
+    for (var page = layout.userPageStart; page <= layout.userPageEnd; page++) {
+      final failure = await _writePage(tag, page, Uint8List(4));
+      if (failure != null) return Err(failure);
+    }
+
+    if (tag.hasNdef) {
+      final emptyResult = await tag.writeNdef(NdefMessageEntity.empty());
+      if (emptyResult case Err(:final failure)) return Err(failure);
+    }
+
+    return okVoid;
+  }
 
   @override
   Future<Result<CopyReport>> copyNdefTo(
@@ -448,14 +473,97 @@ final class TagOperationsImpl implements TagOperations {
     required NdefMessageEntity message,
     required String sourceUidHex,
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.15'));
+  }) async {
+    final guard = _guard(target, ack);
+    if (guard != null) return Err(guard);
+
+    if (!target.hasNdef) {
+      return const Err(TagNotSupported(detail: 'Hedef etiket NDEF degil'));
+    }
+
+    final capabilities = target.ndefCapabilities;
+    if (capabilities == null) {
+      return const Err(TagNotSupported(detail: 'Hedef etiket NDEF degil'));
+    }
+
+    if (message.byteLengthOnTag > capabilities.maxSize) {
+      return Err(
+        InsufficientSpace(
+          needed: message.byteLengthOnTag,
+          available: capabilities.maxSize,
+        ),
+      );
+    }
+
+    final writeResult = await target.writeNdef(message);
+    if (writeResult case Err(:final failure)) return Err(failure);
+
+    final verifyResult = await target.readNdef();
+    if (verifyResult case Err(:final failure)) return Err(failure);
+    final readBack = (verifyResult as Ok<NdefMessageEntity?>).value;
+    if (readBack != message) {
+      return const Err(VerificationFailed());
+    }
+
+    return Ok(
+      CopyReport(
+        sourceUidHex: sourceUidHex,
+        targetUidHex: bytesToHex(target.uid),
+        bytesWritten: message.byteLengthOnTag,
+        recordCount: message.records.length,
+        truncated: false,
+      ),
+    );
+  }
 
   @override
   Future<Result<void>> restoreDump(
     NfcTagHandle tag,
     TagDump dump, {
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.17'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    if (dump.pageSize != 4) {
+      return const Err(
+        TagNotSupported(detail: 'Bu döküm sayfa boyutu ile geri yüklenemiyor'),
+      );
+    }
+
+    final identityResult = await identify(tag);
+    if (identityResult case Err(:final failure)) return Err(failure);
+    final identity = (identityResult as Ok<TagIdentity>).value;
+    if (identity.userPageStart == null || identity.userPageEnd == null) {
+      return const Err(
+        TagNotSupported(detail: 'Bu etiketin kullanıcı alanı bilinmiyor'),
+      );
+    }
+
+    if (identity.isMifareClassic) {
+      return const Err(NotImplementedYet('T4.17'));
+    }
+
+    final firstPage = dump.startPage;
+    final lastPage = dump.startPage + dump.pageCount - 1;
+    if (firstPage < identity.userPageStart! || lastPage > identity.userPageEnd!) {
+      return const Err(TagNotSupported(detail: 'Döküm bu etiketin kullanıcı alanına sığmıyor'));
+    }
+
+    for (var index = 0; index < dump.pageCount; index++) {
+      final page = dump.startPage + index;
+      final start = index * dump.pageSize;
+      final end = start + dump.pageSize > dump.bytes.length ? dump.bytes.length : start + dump.pageSize;
+      final data = Uint8List(4);
+      if (start < dump.bytes.length) {
+        data.setRange(0, end - start, dump.bytes.sublist(start, end));
+      }
+      final failure = await _writePage(tag, page, data);
+      if (failure != null) return Err(failure);
+    }
+
+    return okVoid;
+  }
 
   @override
   Future<Result<void>> formatNdef(
@@ -625,7 +733,42 @@ final class TagOperationsImpl implements TagOperations {
     NfcTagHandle tag, {
     required MirrorSetup setup,
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.25'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    final configResult = await _readConfigState(tag);
+    if (configResult case Err(:final failure)) return Err(failure);
+    final state = (configResult as Ok<({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})>).value;
+
+    if (!state.layout.supportsMirror) {
+      return const Err(
+        TagNotSupported(detail: 'Bu etiket yansitma desteği sunmuyor'),
+      );
+    }
+
+    final mirrorPage = setup.mode == MirrorMode.none ? 0 : setup.page;
+    final mirrorByte = setup.mode == MirrorMode.none ? 0 : setup.byteOffset;
+    if (setup.mode != MirrorMode.none) {
+      if (mirrorPage < state.layout.userPageStart ||
+          mirrorPage > state.layout.userPageEnd) {
+        return const Err(
+          InvalidArgument('Mirror sayfasi kullanici alaninda olmali'),
+        );
+      }
+      if (mirrorByte < 0 || mirrorByte > 3) {
+        return const Err(InvalidArgument('Mirror byte 0-3 olmali'));
+      }
+    }
+
+    final updated = state.config.copyWith(
+      mirrorMode: setup.mode,
+      mirrorPage: mirrorPage,
+      mirrorByte: mirrorByte,
+      strongModulation: state.config.strongModulation,
+    );
+    return _writeConfigState(tag, state.layout, state.cfg0, state.cfg1, updated);
+  }
 
   @override
   Future<Result<void>> configureCounter(
@@ -633,7 +776,26 @@ final class TagOperationsImpl implements TagOperations {
     required bool enabled,
     required bool passwordProtected,
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.26'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    final configResult = await _readConfigState(tag);
+    if (configResult case Err(:final failure)) return Err(failure);
+    final state = (configResult as Ok<({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})>).value;
+
+    if (!state.layout.supportsCounter) {
+      return const Err(
+        TagNotSupported(detail: 'Bu etiket sayaç desteği sunmuyor'),
+      );
+    }
+
+    final updated = state.config.copyWith(
+      counterEnabled: enabled,
+      counterPasswordProtected: passwordProtected,
+    );
+    return _writeConfigState(tag, state.layout, state.cfg0, state.cfg1, updated);
+  }
 
   @override
   Future<Result<void>> makeReadOnly(
@@ -706,6 +868,61 @@ final class TagOperationsImpl implements TagOperations {
     required Uint8List data,
     required DangerAck ack,
   }) async => const Err(NotImplementedYet('T4.34'));
+
+  Future<Result<({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})>>
+  _readConfigState(NfcTagHandle tag) async {
+    final layoutResult = await _resolveLayout(tag);
+    if (layoutResult case Err(:final failure)) {
+      return Err(failure);
+    }
+    final layout = (layoutResult as Ok<NtagLayout>).value;
+
+    final configPage = layout.configPage;
+    if (configPage == null) {
+      return const Err(TagNotSupported(detail: 'Bu yongada yapilandirma sayfasi yok'));
+    }
+
+    final raw = await tag.readUltralightPages(configPage);
+    if (raw case Err(:final failure)) return Err(failure);
+    final bytes = (raw as Ok<Uint8List>).value;
+    if (bytes.length < 16) {
+      return const Err(MalformedData('Yapilandirma sayfalari eksik dondu'));
+    }
+
+    final cfg0 = Uint8List.sublistView(bytes, 0, 4);
+    final cfg1 = Uint8List.sublistView(bytes, 4, 8);
+    return Ok((
+      layout: layout,
+      config: ConfigParser.parseConfig(cfg0: cfg0, cfg1: cfg1),
+      cfg0: Uint8List.fromList(cfg0),
+      cfg1: Uint8List.fromList(cfg1),
+    ));
+  }
+
+  Future<Result<void>> _writeConfigState(
+    NfcTagHandle tag,
+    NtagLayout layout,
+    Uint8List previousCfg0,
+    Uint8List previousCfg1,
+    NtagConfig config,
+  ) async {
+    final configPage = layout.configPage;
+    if (configPage == null) {
+      return const Err(
+        TagNotSupported(detail: 'Bu yongada yapilandirma sayfasi yok'));
+    }
+
+    final cfg0 = ConfigParser.buildCfg0(config, previous: previousCfg0);
+    final cfg1 = ConfigParser.buildCfg1(config, previous: previousCfg1);
+
+    final cfg1Failure = await _writePage(tag, configPage + 1, cfg1);
+    if (cfg1Failure != null) return Err(cfg1Failure);
+
+    final cfg0Failure = await _writePage(tag, configPage, cfg0);
+    if (cfg0Failure != null) return Err(cfg0Failure);
+
+    return okVoid;
+  }
 
   Future<NfcFailure?> _writePage(
     NfcTagHandle tag,

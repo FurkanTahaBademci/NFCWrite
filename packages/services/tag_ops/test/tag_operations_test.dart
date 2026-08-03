@@ -3,6 +3,7 @@ import 'package:nfc_core/testing.dart';
 import 'package:shared_utils/shared_utils.dart';
 import 'package:tag_ops/tag_ops.dart';
 import 'package:test/test.dart';
+import 'dart:typed_data';
 
 /// NTAG213'un gercek `GET_VERSION` cevabi.
 final _ntag213Version = hexToBytes('0004040201000F03');
@@ -15,6 +16,24 @@ FakeTagHandle _ntagTag(String versionHex) => FakeTagHandle(
   rules: [
     FakeTransceiveRule(commandHex: '60', response: hexToBytes(versionHex)),
   ],
+);
+
+FakeTagHandle _ntag213WithPages({
+  Map<int, Uint8List> pages = const {},
+  NdefMessageEntity? ndefMessage,
+}) => FakeTagHandle(
+  uid: hexToBytes('04A1B2C3D4E580'),
+  rules: [
+    FakeTransceiveRule(commandHex: '60', response: hexToBytes('0004040201000F03')),
+  ],
+  ndefMessage: ndefMessage,
+  pages: {
+    0x29: hexToBytes('000000FF'),
+    0x2A: hexToBytes('00000000'),
+    0x2B: hexToBytes('00000000'),
+    0x2C: hexToBytes('00000000'),
+    ...pages,
+  },
 );
 
 void main() {
@@ -290,6 +309,115 @@ void main() {
   });
 
   group('Sifre ve bicimlendirme', () {
+    test('copyNdefTo hedefe NDEF yazar ve raporlar', () async {
+      final target = FakeTagHandle(
+        uid: hexToBytes('04B1B2C3D4E581'),
+      );
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(target.uid));
+      final message = NdefMessageEntity([
+        NdefRecordEntity(
+          typeNameFormat: NdefTypeNameFormat.wellKnown,
+          type: Uint8List.fromList('T'.codeUnits),
+          identifier: Uint8List(0),
+          payload: Uint8List.fromList([0x02, ...'enhello'.codeUnits]),
+        ),
+      ]);
+
+      final result = await operations.copyNdefTo(
+        target,
+        message: message,
+        sourceUidHex: '04A1B2C3D4E580',
+        ack: ack,
+      );
+
+      expect(result, isA<Ok<CopyReport>>());
+      final report = (result as Ok<CopyReport>).value;
+      expect(report.sourceUidHex, '04A1B2C3D4E580');
+      expect(report.targetUidHex, bytesToHex(target.uid));
+      expect(report.recordCount, 1);
+      expect(target.lastWrittenNdef, message);
+    });
+
+    test('factoryReset kullanıcı sayfalarını sıfırlar', () async {
+      final tag = _ntag213WithPages(
+        ndefMessage: NdefMessageEntity([
+          NdefRecordEntity(
+            typeNameFormat: NdefTypeNameFormat.wellKnown,
+            type: Uint8List.fromList('T'.codeUnits),
+            identifier: Uint8List(0),
+            payload: Uint8List.fromList([0x02, 0x65, 0x6E, 0x68, 0x69]),
+          ),
+        ]),
+      );
+
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+      final result = await operations.factoryReset(tag, ack: ack);
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.writtenPages.length, 36);
+      expect(tag.writtenPages.first.page, 0x04);
+      expect(tag.writtenPages.last.page, 0x27);
+      expect(tag.writtenPages.every((entry) => entry.data.every((b) => b == 0)), isTrue);
+      expect(tag.lastWrittenNdef?.isEmpty, isTrue);
+    });
+
+    test('restoreDump sayfaları dump ile geri yazar', () async {
+      final tag = _ntag213WithPages();
+      final dump = TagDump(
+        id: null,
+        uidHex: '04A1B2C3D4E580',
+        createdAt: DateTime(2026, 8, 3),
+        bytes: hexToBytes('0102030405060708'),
+        pageSize: 4,
+        startPage: 0x04,
+        reason: DumpReason.imported,
+      );
+
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+      final result = await operations.restoreDump(tag, dump, ack: ack);
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.writtenPages.map((entry) => entry.page), [0x04, 0x05]);
+      expect(bytesToHex(tag.writtenPages[0].data), '01020304');
+      expect(bytesToHex(tag.writtenPages[1].data), '05060708');
+    });
+
+    test('configureMirror CFG0 ve CFG1 yazilir', () async {
+      final tag = _ntag213WithPages();
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+
+      final result = await operations.configureMirror(
+        tag,
+        setup: const MirrorSetup(
+          mode: MirrorMode.uidAndCounter,
+          page: 0x06,
+          byteOffset: 1,
+        ),
+        ack: ack,
+      );
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.writtenPages.map((entry) => entry.page), [0x2A, 0x29]);
+      expect(bytesToHex(tag.writtenPages[1].data), 'D00006FF');
+    });
+
+    test('configureCounter CFG0 ve CFG1 yazilir', () async {
+      final tag = _ntag213WithPages();
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+
+      final result = await operations.configureCounter(
+        tag,
+        enabled: true,
+        passwordProtected: true,
+        ack: ack,
+      );
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.writtenPages.map((entry) => entry.page), [0x2A, 0x29]);
+      expect(bytesToHex(tag.writtenPages[0].data), '18000000');
+      expect(bytesToHex(tag.writtenPages[1].data), '000000FF');
+    });
+
     test('setPassword sirasiyla PWD, PACK, CFG1, CFG0 yazar', () async {
       final tag = FakeTagHandle(
         uid: hexToBytes('04A1B2C3D4E580'),

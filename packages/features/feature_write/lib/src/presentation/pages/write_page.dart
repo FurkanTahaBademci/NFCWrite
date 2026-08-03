@@ -91,7 +91,8 @@ class _WritePageState extends ConsumerState<WritePage> {
                         child: Card(
                           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                           child: ListTile(
-                            onTap: () => _editRecord(index: index, record: record),
+                            onTap: () =>
+                                _editRecord(index: index, record: record),
                             leading: const Icon(Icons.drag_indicator),
                             title: Text(_labelFor(record)),
                             subtitle: Text(
@@ -197,7 +198,8 @@ class _WritePageState extends ConsumerState<WritePage> {
 
     if (state.phase == WritePhase.success) {
       messenger.showSnackBar(SnackBar(content: Text(l10n.scanSuccess)));
-    } else if (state.phase == WritePhase.editing && state.targetCapacityBytes != null) {
+    } else if (state.phase == WritePhase.editing &&
+        state.targetCapacityBytes != null) {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -254,7 +256,9 @@ class _CapacitySection extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: _handleProbeTap,
             icon: const Icon(Icons.nfc),
-            label: Text(total == null ? 'Kart kapasitesini tara' : 'Tekrar tara'),
+            label: Text(
+              total == null ? 'Kart kapasitesini tara' : 'Tekrar tara',
+            ),
           ),
         ],
       ),

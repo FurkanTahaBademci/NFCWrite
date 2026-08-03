@@ -45,11 +45,10 @@ class HistoryPage extends ConsumerWidget {
             : ListView.separated(
                 itemCount: list.length,
                 separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (context, index) =>
-                    _HistoryTile(
-                      record: list[index],
-                      onTap: () => _showDetails(context, list[index]),
-                    ),
+                itemBuilder: (context, index) => _HistoryTile(
+                  record: list[index],
+                  onTap: () => _showDetails(context, list[index]),
+                ),
               ),
       ),
     );
@@ -140,7 +139,10 @@ class _HistoryDetailSheet extends StatelessWidget {
         child: ListView(
           shrinkWrap: true,
           children: [
-            Text(record.displayTitle, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              record.displayTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               '${record.scannedAt.day.toString().padLeft(2, '0')}.'
@@ -152,12 +154,21 @@ class _HistoryDetailSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             const Divider(),
             InfoRow(label: 'UID', value: record.uidHex, monospace: true),
-            InfoRow(label: 'Yonga', value: record.chipDisplayName ?? record.chipFamily.name),
+            InfoRow(
+              label: 'Yonga',
+              value: record.chipDisplayName ?? record.chipFamily.name,
+            ),
             InfoRow(label: 'Yazma durumu', value: writableText),
             if (record.ndefByteLength != null)
-              InfoRow(label: 'NDEF boyutu', value: '${record.ndefByteLength} byte'),
+              InfoRow(
+                label: 'NDEF boyutu',
+                value: '${record.ndefByteLength} byte',
+              ),
             if (record.maxNdefSize != null)
-              InfoRow(label: 'Maksimum kapasite', value: '${record.maxNdefSize} byte'),
+              InfoRow(
+                label: 'Maksimum kapasite',
+                value: '${record.maxNdefSize} byte',
+              ),
             if (record.technologies.isNotEmpty) ...[
               const SectionHeader('Teknolojiler'),
               Wrap(
@@ -179,7 +190,8 @@ class _HistoryDetailSheet extends StatelessWidget {
                   title: Text(summary),
                 ),
             ],
-            if (record.rawJson != null && record.rawJson!.trim().isNotEmpty) ...[
+            if (record.rawJson != null &&
+                record.rawJson!.trim().isNotEmpty) ...[
               const SectionHeader('Ham JSON'),
               SelectableText(record.rawJson!),
             ],

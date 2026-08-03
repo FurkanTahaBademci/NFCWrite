@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,33 +27,38 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
   bool _busy = false;
   late final TextEditingController _rawCommandController;
   late final TextEditingController _passwordController;
-  late final TextEditingController _packController;
   late final TextEditingController _currentPasswordController;
-  late final TextEditingController _protectFromPageController;
-  late final TextEditingController _authLimitController;
+  late final TextEditingController _mirrorPageController;
+  late final TextEditingController _mirrorByteController;
   TransceiveChannel _rawChannel = TransceiveChannel.nfcA;
-  PasswordProtectionScope _passwordScope = PasswordProtectionScope.writeOnly;
-  bool _protectCounter = false;
+  MirrorMode _mirrorMode = MirrorMode.none;
+  bool _counterEnabled = false;
+  bool _counterPasswordProtected = false;
+  bool _passwordInputIsDecimal = false;
+  bool _currentPasswordInputIsDecimal = false;
+  List<TagDump> _availableDumps = const <TagDump>[];
+  TagDump? _selectedDump;
 
   @override
   void initState() {
     super.initState();
     _rawCommandController = TextEditingController();
     _passwordController = TextEditingController();
-    _packController = TextEditingController();
     _currentPasswordController = TextEditingController();
-    _protectFromPageController = TextEditingController(text: '4');
-    _authLimitController = TextEditingController(text: '0');
+    _mirrorPageController = TextEditingController(text: '6');
+    _mirrorByteController = TextEditingController(text: '0');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAvailableDumps();
+    });
   }
 
   @override
   void dispose() {
     _rawCommandController.dispose();
     _passwordController.dispose();
-    _packController.dispose();
     _currentPasswordController.dispose();
-    _protectFromPageController.dispose();
-    _authLimitController.dispose();
+    _mirrorPageController.dispose();
+    _mirrorByteController.dispose();
     super.dispose();
   }
 
@@ -109,20 +116,10 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
             const SizedBox(height: AppSpacing.xl),
             _SetPasswordForm(
               passwordController: _passwordController,
-              packController: _packController,
-              protectFromPageController: _protectFromPageController,
-              authLimitController: _authLimitController,
-              scope: _passwordScope,
-              protectCounter: _protectCounter,
-              onScopeChanged: (value) {
-                if (value == null) return;
+              isDecimal: _passwordInputIsDecimal,
+              onDecimalChanged: (value) {
                 setState(() {
-                  _passwordScope = value;
-                });
-              },
-              onProtectCounterChanged: (value) {
-                setState(() {
-                  _protectCounter = value;
+                  _passwordInputIsDecimal = value;
                 });
               },
             ),
@@ -130,7 +127,62 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
 
           if (tool.id == 'remove_password') ...[
             const SizedBox(height: AppSpacing.xl),
-            _RemovePasswordForm(controller: _currentPasswordController),
+            _RemovePasswordForm(
+              controller: _currentPasswordController,
+              isDecimal: _currentPasswordInputIsDecimal,
+              onDecimalChanged: (value) {
+                setState(() {
+                  _currentPasswordInputIsDecimal = value;
+                });
+              },
+            ),
+          ],
+
+          if (tool.id == 'restore_dump') ...[
+            const SizedBox(height: AppSpacing.xl),
+            _RestoreDumpForm(
+              dumps: _availableDumps,
+              selectedDump: _selectedDump,
+              onRefresh: _loadAvailableDumps,
+              onChanged: (dump) {
+                setState(() {
+                  _selectedDump = dump;
+                });
+              },
+            ),
+          ],
+
+          if (tool.id == 'configure_mirror') ...[
+            const SizedBox(height: AppSpacing.xl),
+            _MirrorForm(
+              pageController: _mirrorPageController,
+              byteController: _mirrorByteController,
+              mode: _mirrorMode,
+              onModeChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _mirrorMode = value;
+                });
+              },
+            ),
+          ],
+
+          if (tool.id == 'configure_counter') ...[
+            const SizedBox(height: AppSpacing.xl),
+            _CounterForm(
+              enabled: _counterEnabled,
+              passwordProtected: _counterPasswordProtected,
+              onEnabledChanged: (value) {
+                setState(() {
+                  _counterEnabled = value;
+                });
+              },
+              onPasswordProtectedChanged: (value) {
+                setState(() {
+                  _counterPasswordProtected = value;
+                });
+              },
+            ),
           ],
 
           if (_resultMessage != null) ...[
@@ -176,6 +228,23 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     final session = ref.read(nfcSessionServiceProvider);
     final operations = ref.read(tagOperationsProvider);
 
+    if (tool.id == 'copy_tag') {
+      setState(() {
+        _busy = true;
+        _resultMessage = null;
+      });
+      final result = await _runCopyTag(session, operations);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _resultMessage = switch (result) {
+          Ok(:final value) => value,
+          Err(:final failure) => l10n.messageFor(failure),
+        };
+      });
+      return;
+    }
+
     if (tool.id == 'raw_console') {
       final commandHex = _rawCommandController.text.trim();
       if (commandHex.isEmpty || !isValidHex(commandHex)) {
@@ -187,55 +256,59 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     }
 
     if (tool.id == 'set_password') {
-      final passwordHex = _passwordController.text.trim();
-      final packHex = _packController.text.trim();
-      final protectFromPageText = _protectFromPageController.text.trim();
-      final authLimitText = _authLimitController.text.trim();
-
-      if (!isValidHex(passwordHex) || hexToBytes(passwordHex).length != 4) {
+      final passwordResult = _parsePasswordInput(
+        _passwordController.text.trim(),
+        isDecimal: _passwordInputIsDecimal,
+        fieldLabel: 'Şifre',
+      );
+      if (passwordResult case Err(:final failure)) {
         setState(() {
-          _resultMessage =
-              'Şifre 4 byte (8 hex karakter) olmalı. Örnek: 01020304';
+          _resultMessage = l10n.messageFor(failure);
         });
         return;
       }
-      if (!isValidHex(packHex) || hexToBytes(packHex).length != 2) {
-        setState(() {
-          _resultMessage =
-              'PACK 2 byte (4 hex karakter) olmalı. Örnek: A1B2';
-        });
-        return;
-      }
-
-      final protectFromPage = int.tryParse(protectFromPageText);
-      if (protectFromPage == null || protectFromPage < 0 || protectFromPage > 255) {
-        setState(() {
-          _resultMessage = 'Koruma başlangıç sayfası 0-255 arasında olmalı.';
-        });
-        return;
-      }
-
-      final authLimit = int.tryParse(authLimitText);
-      if (authLimit == null || authLimit < 0 || authLimit > 7) {
-        setState(() {
-          _resultMessage = 'AUTHLIM değeri 0-7 arasında olmalı.';
-        });
-        return;
-      }
-
-      // Parametreler dogrulandi; gercek olusturma asagida islem aninda yapilir.
     }
 
     if (tool.id == 'remove_password') {
-      final passwordHex = _currentPasswordController.text.trim();
-      if (!isValidHex(passwordHex) || hexToBytes(passwordHex).length != 4) {
+      final passwordResult = _parsePasswordInput(
+        _currentPasswordController.text.trim(),
+        isDecimal: _currentPasswordInputIsDecimal,
+        fieldLabel: 'Mevcut şifre',
+      );
+      if (passwordResult case Err(:final failure)) {
         setState(() {
-          _resultMessage =
-              'Mevcut şifre 4 byte (8 hex karakter) olmalı. Örnek: 01020304';
+          _resultMessage = l10n.messageFor(failure);
         });
         return;
       }
-      // Parametre dogrulandi; gercek kullanim asagida islem aninda yapilir.
+    }
+
+    if (tool.id == 'restore_dump' && _selectedDump == null) {
+      setState(() {
+        _resultMessage = 'Lütfen bir döküm seçin.';
+      });
+      return;
+    }
+
+    if (tool.id == 'configure_mirror') {
+      final pageText = _mirrorPageController.text.trim();
+      final byteText = _mirrorByteController.text.trim();
+      final page = int.tryParse(pageText);
+      final byteOffset = int.tryParse(byteText);
+      if (_mirrorMode != MirrorMode.none) {
+        if (page == null || page < 0 || page > 255) {
+          setState(() {
+            _resultMessage = 'Mirror sayfası 0-255 arasında olmalı.';
+          });
+          return;
+        }
+        if (byteOffset == null || byteOffset < 0 || byteOffset > 3) {
+          setState(() {
+            _resultMessage = 'Mirror byte değeri 0-3 arasında olmalı.';
+          });
+          return;
+        }
+      }
     }
 
     setState(() {
@@ -333,31 +406,75 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
       case 'format_tag':
         final result = await operations.formatNdef(tag, ack: ack);
         return result.map((_) => 'Etiket NDEF olarak biçimlendirildi');
+      case 'factory_reset':
+        final result = await operations.factoryReset(tag, ack: ack);
+        return result.map((_) => 'Etiket fabrika ayarlarına döndürüldü');
+      case 'restore_dump':
+        final dump = _selectedDump;
+        if (dump == null) {
+          return const Err(InvalidArgument('Döküm seçilmedi'));
+        }
+        final result = await operations.restoreDump(tag, dump, ack: ack);
+        return result.map((_) => 'Döküm geri yüklendi');
       case 'set_password':
-        final passwordHex = _passwordController.text.trim();
-        final packHex = _packController.text.trim();
-        final protectFromPage = int.parse(_protectFromPageController.text.trim());
-        final authLimit = int.parse(_authLimitController.text.trim());
+        final passwordResult = _parsePasswordInput(
+          _passwordController.text.trim(),
+          isDecimal: _passwordInputIsDecimal,
+          fieldLabel: 'Şifre',
+        );
+        if (passwordResult case Err(:final failure)) return Err(failure);
+        final password = (passwordResult as Ok<Uint8List>).value;
         final result = await operations.setPassword(
           tag,
           setup: PasswordSetup(
-            password: hexToBytes(passwordHex),
-            pack: hexToBytes(packHex),
-            protectFromPage: protectFromPage,
-            scope: _passwordScope,
-            authLimit: authLimit,
-            protectCounter: _protectCounter,
+            password: password,
+            pack: Uint8List.fromList([0x00, 0x00]),
+            protectFromPage: 0x04,
+            scope: PasswordProtectionScope.writeOnly,
+            authLimit: 0,
+            protectCounter: false,
           ),
           ack: ack,
         );
         return result.map((_) => 'Şifre koruması etkinleştirildi');
       case 'remove_password':
+        final passwordResult = _parsePasswordInput(
+          _currentPasswordController.text.trim(),
+          isDecimal: _currentPasswordInputIsDecimal,
+          fieldLabel: 'Mevcut şifre',
+        );
+        if (passwordResult case Err(:final failure)) return Err(failure);
         final result = await operations.removePassword(
           tag,
-          currentPassword: hexToBytes(_currentPasswordController.text.trim()),
+          currentPassword: (passwordResult as Ok<Uint8List>).value,
           ack: ack,
         );
         return result.map((_) => 'Şifre koruması kaldırıldı');
+      case 'configure_mirror':
+        final page = _mirrorMode == MirrorMode.none
+            ? 0
+            : int.parse(_mirrorPageController.text.trim());
+        final byteOffset = _mirrorMode == MirrorMode.none
+            ? 0
+            : int.parse(_mirrorByteController.text.trim());
+        final result = await operations.configureMirror(
+          tag,
+          setup: MirrorSetup(
+            mode: _mirrorMode,
+            page: page,
+            byteOffset: byteOffset,
+          ),
+          ack: ack,
+        );
+        return result.map((_) => 'UID / sayaç yansıtma ayarlandı');
+      case 'configure_counter':
+        final result = await operations.configureCounter(
+          tag,
+          enabled: _counterEnabled,
+          passwordProtected: _counterPasswordProtected,
+          ack: ack,
+        );
+        return result.map((_) => 'Sayaç ayarları güncellendi');
       case 'make_read_only':
         final result = await operations.makeReadOnly(tag, ack: ack);
         return result.map((_) => 'Etiket kalıcı olarak salt-okunur yapıldı');
@@ -376,6 +493,126 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
       default:
         return Err(NotImplementedYet(tool.taskId));
     }
+  }
+
+  Future<Result<String>> _runCopyTag(
+    NfcSessionService session,
+    TagOperations operations,
+  ) async {
+    final sourceResult = await session.runOnce<({
+      String uidHex,
+      NdefMessageEntity message,
+    })>(
+      onTag: (sourceTag) async {
+        final readResult = await sourceTag.readNdef();
+        return switch (readResult) {
+          Err(:final failure) => Err(failure),
+          Ok(:final value) when value == null => const Err(
+            TagNotSupported(detail: 'Kaynak etiket NDEF değil'),
+          ),
+          Ok(:final value) => Ok(
+            (
+              uidHex: bytesToHex(sourceTag.uid),
+              message: value!,
+            ),
+          ),
+        };
+      },
+    );
+
+    if (sourceResult case Err(:final failure)) return Err(failure);
+    final sourceData = (sourceResult as Ok<({String uidHex, NdefMessageEntity message})>).value;
+
+    final targetResult = await session.runOnce<String>(
+      onTag: (targetTag) async {
+        if (!mounted) return const Err(OperationCancelled());
+        final confirmation = await DangerDialog.show(
+          context,
+          title: 'Etiketi kopyala',
+          description: 'Kaynak etiketin NDEF içeriği bu etikete yazılacak.',
+          risk: RiskLevel.caution,
+          targetUid: formatUid(targetTag.uid),
+        );
+        if (confirmation == null || !confirmation.confirmed) {
+          return const Err(OperationCancelled());
+        }
+
+        final ack = DangerAck.userConfirmed(
+          risk: OperationRisk.content,
+          operationId: 'copy_tag',
+          targetUidHex: bytesToHex(targetTag.uid),
+          backupTaken: confirmation.takeBackup,
+        );
+
+        final result = await operations.copyNdefTo(
+          targetTag,
+          message: sourceData.message,
+          sourceUidHex: sourceData.uidHex,
+          ack: ack,
+        );
+        return result.map(
+          (report) =>
+              'Kopyalandı: ${report.recordCount} kayıt, ${report.bytesWritten} byte',
+        );
+      },
+    );
+
+    return switch (targetResult) {
+      Ok(:final value) => Ok(value),
+      Err(:final failure) => Err(failure),
+    };
+  }
+
+  Future<void> _loadAvailableDumps() async {
+    final repo = ref.read(dumpRepositoryProvider);
+    final result = await repo.listAll(limit: 25);
+    if (!mounted) return;
+
+    setState(() {
+      _availableDumps = switch (result) {
+        Ok(:final value) => value,
+        Err() => const <TagDump>[],
+      };
+      if (_selectedDump == null && _availableDumps.isNotEmpty) {
+        _selectedDump = _availableDumps.first;
+      }
+      if (_availableDumps.isEmpty) {
+        _selectedDump = null;
+      }
+    });
+  }
+
+  Result<Uint8List> _parsePasswordInput(
+    String value, {
+    required bool isDecimal,
+    required String fieldLabel,
+  }) {
+    if (value.isEmpty) {
+      return Err(InvalidArgument('$fieldLabel girin'));
+    }
+
+    if (isDecimal) {
+      final parsed = int.tryParse(value);
+      if (parsed == null || parsed < 0 || parsed > 0xFFFFFFFF) {
+        return Err(
+          InvalidArgument(
+            '$fieldLabel ondalık değeri 0-4294967295 arasında olmalı',
+          ),
+        );
+      }
+      return Ok(intToBytesBigEndian(parsed, 4));
+    }
+
+    if (!isValidHex(value)) {
+      return Err(InvalidArgument('$fieldLabel hex değeri geçersiz'));
+    }
+    final bytes = hexToBytes(value);
+    if (bytes.length != 4) {
+      return Err(
+        InvalidArgument('$fieldLabel 4 byte (8 hex karakter) olmalı'),
+      );
+    }
+    return Ok(bytes);
   }
 }
 
@@ -397,10 +634,7 @@ class _RawCommandForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Komut',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text('Komut', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: controller,
@@ -446,23 +680,13 @@ class _RawCommandForm extends StatelessWidget {
 class _SetPasswordForm extends StatelessWidget {
   const _SetPasswordForm({
     required this.passwordController,
-    required this.packController,
-    required this.protectFromPageController,
-    required this.authLimitController,
-    required this.scope,
-    required this.protectCounter,
-    required this.onScopeChanged,
-    required this.onProtectCounterChanged,
+    required this.isDecimal,
+    required this.onDecimalChanged,
   });
 
   final TextEditingController passwordController;
-  final TextEditingController packController;
-  final TextEditingController protectFromPageController;
-  final TextEditingController authLimitController;
-  final PasswordProtectionScope scope;
-  final bool protectCounter;
-  final ValueChanged<PasswordProtectionScope?> onScopeChanged;
-  final ValueChanged<bool> onProtectCounterChanged;
+  final bool isDecimal;
+  final ValueChanged<bool> onDecimalChanged;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -476,70 +700,19 @@ class _SetPasswordForm extends StatelessWidget {
           TextField(
             controller: passwordController,
             decoration: const InputDecoration(
-              labelText: 'Şifre (4 byte, hex)',
+              labelText: 'Şifre (4 byte)',
               hintText: '01020304',
               prefixIcon: Icon(Icons.password),
             ),
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: packController,
-            decoration: const InputDecoration(
-              labelText: 'PACK (2 byte, hex)',
-              hintText: 'A1B2',
-              prefixIcon: Icon(Icons.verified_user_outlined),
-            ),
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: protectFromPageController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Koruma başlangıç sayfası (AUTH0)',
-                    hintText: '4',
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: TextField(
-                  controller: authLimitController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'AUTHLIM (0-7)',
-                    hintText: '0',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          DropdownButtonFormField<PasswordProtectionScope>(
-            initialValue: scope,
-            onChanged: onScopeChanged,
-            items: const [
-              DropdownMenuItem(
-                value: PasswordProtectionScope.writeOnly,
-                child: Text('Sadece yazmayı koru'),
-              ),
-              DropdownMenuItem(
-                value: PasswordProtectionScope.readAndWrite,
-                child: Text('Okuma + yazmayı koru'),
-              ),
-            ],
-            decoration: const InputDecoration(labelText: 'Koruma kapsamı'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            value: protectCounter,
-            onChanged: onProtectCounterChanged,
-            title: const Text('Sayaç okumayı da şifreyle koru'),
+            value: isDecimal,
+            onChanged: onDecimalChanged,
+            title: const Text('Ondalık giriş'),
+            subtitle: const Text('Kapalıysa hex, açıksa 0-4294967295 arası sayı girilir.'),
           ),
         ],
       ),
@@ -548,9 +721,15 @@ class _SetPasswordForm extends StatelessWidget {
 }
 
 class _RemovePasswordForm extends StatelessWidget {
-  const _RemovePasswordForm({required this.controller});
+  const _RemovePasswordForm({
+    required this.controller,
+    required this.isDecimal,
+    required this.onDecimalChanged,
+  });
 
   final TextEditingController controller;
+  final bool isDecimal;
+  final ValueChanged<bool> onDecimalChanged;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -559,18 +738,192 @@ class _RemovePasswordForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Mevcut şifre doğrulaması',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text('Şifre kaldır', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: controller,
             decoration: const InputDecoration(
-              labelText: 'Mevcut şifre (4 byte, hex)',
+              labelText: 'Mevcut şifre (4 byte)',
               hintText: '01020304',
               prefixIcon: Icon(Icons.lock_open_outlined),
             ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: isDecimal,
+            onChanged: onDecimalChanged,
+            title: const Text('Ondalık giriş'),
+            subtitle: const Text('Kapalıysa hex, açıksa 0-4294967295 arası sayı girilir.'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _RestoreDumpForm extends StatelessWidget {
+  const _RestoreDumpForm({
+    required this.dumps,
+    required this.selectedDump,
+    required this.onRefresh,
+    required this.onChanged,
+  });
+
+  final List<TagDump> dumps;
+  final TagDump? selectedDump;
+  final VoidCallback onRefresh;
+  final ValueChanged<TagDump?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Döküm seç',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              IconButton(
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Yenile',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (dumps.isEmpty)
+            const Text('Kayıtlı döküm bulunamadı.')
+          else
+            DropdownButtonFormField<TagDump>(
+              initialValue: selectedDump,
+              items: dumps
+                  .map(
+                    (dump) => DropdownMenuItem(
+                      value: dump,
+                      child: Text(
+                        '${dump.label ?? dump.uidHex} · ${dump.bytes.length} byte',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: onChanged,
+              decoration: const InputDecoration(labelText: 'Geri yüklenecek döküm'),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MirrorForm extends StatelessWidget {
+  const _MirrorForm({
+    required this.pageController,
+    required this.byteController,
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  final TextEditingController pageController;
+  final TextEditingController byteController;
+  final MirrorMode mode;
+  final ValueChanged<MirrorMode?> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('UID / sayaç yansıtma', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<MirrorMode>(
+            initialValue: mode,
+            onChanged: onModeChanged,
+            items: const [
+              DropdownMenuItem(value: MirrorMode.none, child: Text('Kapalı')),
+              DropdownMenuItem(value: MirrorMode.uid, child: Text('UID')),
+              DropdownMenuItem(value: MirrorMode.counter, child: Text('Sayaç')),
+              DropdownMenuItem(
+                value: MirrorMode.uidAndCounter,
+                child: Text('UID + sayaç'),
+              ),
+            ],
+            decoration: const InputDecoration(labelText: 'Yansıtma modu'),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: pageController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Yansıtma sayfası',
+                    hintText: '6',
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: TextField(
+                  controller: byteController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Yansıtma byte',
+                    hintText: '0',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _CounterForm extends StatelessWidget {
+  const _CounterForm({
+    required this.enabled,
+    required this.passwordProtected,
+    required this.onEnabledChanged,
+    required this.onPasswordProtectedChanged,
+  });
+
+  final bool enabled;
+  final bool passwordProtected;
+  final ValueChanged<bool> onEnabledChanged;
+  final ValueChanged<bool> onPasswordProtectedChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Sayaç ayarları', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.md),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: enabled,
+            onChanged: onEnabledChanged,
+            title: const Text('Sayaç etkin'),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: passwordProtected,
+            onChanged: onPasswordProtectedChanged,
+            title: const Text('Sayaç şifre korumalı'),
           ),
         ],
       ),
