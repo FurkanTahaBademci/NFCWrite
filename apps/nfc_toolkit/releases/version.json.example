@@ -1,8 +1,8 @@
 {
-  "version": "0.1.2",
-  "buildNumber": 3,
-  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.2/nfc_toolkit-v0.1.2+3.apk",
+  "version": "0.1.3",
+  "buildNumber": 4,
+  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.3/nfc_toolkit-v0.1.3+4.apk",
   "forceUpdate": false,
-  "sha256": "8e2b5c9da637374447e495de391701f6527e91e7f045c58785c1a418968c8f0d",
-  "releaseNotes": "- vCard olusturma ve yazma akisi eklendi\n- Kayit tipi secici kategorili/aramali hale getirildi\n- Kararlilik iyilestirmeleri"
+  "sha256": "91f1888c7e48237407336fac67b40fb588c6d4c7a073a129b8db3d9c3de910da",
+  "releaseNotes": "- OTA kontrolu icin varsayilan uzak surum URL'i eklendi\n- vCard olusturma ve yazma akisi\n- Kayit tipi secici kategorili/aramali"
 }
