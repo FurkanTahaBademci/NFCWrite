@@ -22,15 +22,23 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val SYSTEM_CHANNEL = "nfc_toolkit/system"
+        private const val ACTION_NDEF_DISCOVERED = "android.nfc.action.NDEF_DISCOVERED"
+        private const val ACTION_TECH_DISCOVERED = "android.nfc.action.TECH_DISCOVERED"
+        private const val ACTION_TAG_DISCOVERED = "android.nfc.action.TAG_DISCOVERED"
     }
+
+    private var systemChannel: MethodChannel? = null
+    private var readPageVisible: Boolean = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(
+        systemChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             SYSTEM_CHANNEL
-        ).setMethodCallHandler { call, result ->
+        )
+
+        systemChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "openNfcSettings" -> {
                     openNfcSettings()
@@ -43,9 +51,42 @@ class MainActivity : FlutterActivity() {
                     openInstallUnknownAppsSettings()
                     result.success(null)
                 }
+                "setReadPageVisible" -> {
+                    readPageVisible = when (val args = call.arguments) {
+                        is Boolean -> args
+                        else -> call.argument<Boolean>("visible") ?: false
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        if (_isNfcIntent(intent)) {
+            if (!readPageVisible) {
+                setIntent(intent)
+                return
+            }
+
+            systemChannel?.invokeMethod(
+                "onNfcIntent",
+                mapOf("action" to intent.action)
+            )
+
+            setIntent(intent)
+            return
+        }
+
+        super.onNewIntent(intent)
+    }
+
+    private fun _isNfcIntent(intent: Intent?): Boolean {
+        val action = intent?.action ?: return false
+        return action == ACTION_NDEF_DISCOVERED ||
+            action == ACTION_TECH_DISCOVERED ||
+            action == ACTION_TAG_DISCOVERED
     }
 
     /**

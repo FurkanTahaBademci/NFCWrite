@@ -156,7 +156,7 @@ class _IdentityTab extends StatelessWidget {
           ),
         if (info.counterValue != null)
           InfoRow(
-            label: 'NFC sayaci',
+            label: 'NFC sayacı',
             value: '${info.counterValue}',
             icon: Icons.numbers,
           ),
@@ -248,7 +248,7 @@ class _RecordCard extends StatelessWidget {
               monospace: true,
             ),
           InfoRow(
-            label: 'Yuk (${record.payload.length} byte)',
+            label: 'Yük (${record.payload.length} byte)',
             value: bytesToHex(record.payload, separator: ' '),
             monospace: true,
           ),
@@ -260,7 +260,7 @@ class _RecordCard extends StatelessWidget {
               AppSpacing.sm,
             ),
             child: Text(
-              'Kayit ${index + 1} · ${record.byteLength} byte',
+              'Kayıt ${index + 1} · ${record.byteLength} byte',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

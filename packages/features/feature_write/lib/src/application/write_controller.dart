@@ -11,6 +11,7 @@ final class WriteState {
     this.phase = WritePhase.editing,
     this.failure,
     this.lockAfterWrite = false,
+    this.targetCapacityBytes,
   });
 
   /// Etikete yazilacak kayitlar, sirasiyla.
@@ -21,6 +22,9 @@ final class WriteState {
 
   /// Yazdiktan sonra etiket kalici olarak kilitlensin mi?
   final bool lockAfterWrite;
+
+  /// Taranan hedef etiketin NDEF kapasitesi (byte). Henuz taranmadiysa null.
+  final int? targetCapacityBytes;
 
   /// Kayitlarin etikette kaplayacagi toplam byte (TLV zarfi dahil).
   int get byteLength =>
@@ -34,16 +38,21 @@ final class WriteState {
     NfcFailure? failure,
     bool clearFailure = false,
     bool? lockAfterWrite,
+    int? targetCapacityBytes,
+    bool clearTargetCapacity = false,
   }) => WriteState(
     records: records ?? this.records,
     phase: phase ?? this.phase,
     failure: clearFailure ? null : (failure ?? this.failure),
     lockAfterWrite: lockAfterWrite ?? this.lockAfterWrite,
+    targetCapacityBytes: clearTargetCapacity
+        ? null
+        : (targetCapacityBytes ?? this.targetCapacityBytes),
   );
 }
 
 /// Yazma akisinin evresi.
-enum WritePhase { editing, waitingForTag, writing, success, failure }
+enum WritePhase { editing, probingTag, waitingForTag, writing, success, failure }
 
 /// Yazma ekraninin denetleyicisi.
 ///
@@ -56,6 +65,14 @@ final class WriteController extends Notifier<WriteState> {
   /// Listeye kayit ekler.
   void addRecord(NdefContent content) {
     state = state.copyWith(records: [...state.records, content]);
+  }
+
+  /// Verilen sirdaki kaydi gunceller.
+  void updateRecord({required int index, required NdefContent content}) {
+    if (index < 0 || index >= state.records.length) return;
+    final records = [...state.records];
+    records[index] = content;
+    state = state.copyWith(records: records);
   }
 
   /// Verilen sirdaki kaydi siler.
@@ -80,6 +97,32 @@ final class WriteController extends Notifier<WriteState> {
   /// "Yazdiktan sonra kilitle" anahtarini degistirir.
   void setLockAfterWrite({required bool value}) =>
       state = state.copyWith(lockAfterWrite: value);
+
+  /// Hedef etiketin kapasitesini okur.
+  Future<void> probeTargetCapacity() async {
+    if (state.phase != WritePhase.editing) return;
+
+    final session = ref.read(nfcSessionServiceProvider);
+    final operations = ref.read(tagOperationsProvider);
+
+    state = state.copyWith(phase: WritePhase.probingTag, clearFailure: true);
+
+    final result = await session.runOnce<NfcTagInfo>(
+      onTag: (tag) => operations.inspect(tag, deep: false),
+      polling: const {NfcPollingMode.iso14443, NfcPollingMode.iso15693},
+    );
+
+    state = switch (result) {
+      Ok(:final value) => state.copyWith(
+        phase: WritePhase.editing,
+        targetCapacityBytes: value.maxNdefSize,
+      ),
+      Err(:final failure) => state.copyWith(
+        phase: WritePhase.failure,
+        failure: failure,
+      ),
+    };
+  }
 
   /// Etikete yazar.
   Future<void> write() async {

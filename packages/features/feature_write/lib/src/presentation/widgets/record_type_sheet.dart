@@ -2,17 +2,103 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:ndef_codec/ndef_codec.dart';
 
-/// Kayit tipi secici + basit sihirbaz.
-///
-/// **Iskelet.** Su an yalnizca metin ve baglanti kaydi olusturulabiliyor.
-/// 26 kayit tipinin tamami ve kategorili/aranabilir secici T3'un isi:
-/// `.claude/tracks/T3-write.md` gorev T3.35 ve T3.36.
+/// Kayıt tipi seçici + basit sihirbaz.
 abstract final class RecordTypeSheet {
-  /// Secici sayfayi acar. Kullanici vazgecerse null doner.
+  /// Seçici sayfayı açar. Kullanıcı vazgeçerse null döner.
   static Future<NdefContent?> show(BuildContext context) =>
       Navigator.of(context).push<NdefContent>(
         MaterialPageRoute(builder: (_) => const _RecordTypePage()),
       );
+
+  /// Var olan bir kaydı düzenlemek için uygun editörü açar.
+  static Future<NdefContent?> edit(BuildContext context, NdefContent content) {
+    switch (content) {
+      case TextContent(:final text):
+        return Navigator.of(context).push<NdefContent>(
+          MaterialPageRoute(
+            builder: (_) =>
+                _RecordInputPage(config: _EditorConfig.text(), initialValue: text),
+          ),
+        );
+      case UriContent(:final uri):
+        final launch = _editorForUri(uri);
+        return Navigator.of(context).push<NdefContent>(
+          MaterialPageRoute(
+            builder: (_) => _RecordInputPage(
+              config: launch.config,
+              initialValue: launch.initialValue,
+            ),
+          ),
+        );
+      case VCardContent():
+        return Navigator.of(context).push<NdefContent>(
+          MaterialPageRoute(builder: (_) => _VCardInputPage(initial: content)),
+        );
+      default:
+        return Future<NdefContent?>.value(null);
+    }
+  }
+
+  static _EditorLaunch _editorForUri(String uri) {
+    if (uri.startsWith('tel:')) {
+      return _EditorLaunch(_EditorConfig.phone(), uri.substring(4));
+    }
+    if (uri.startsWith('sms:')) {
+      return _EditorLaunch(_EditorConfig.sms(), uri.substring(4));
+    }
+    if (uri.startsWith('mailto:')) {
+      return _EditorLaunch(_EditorConfig.email(), uri.substring(7));
+    }
+    if (uri.startsWith('geo:')) {
+      return _EditorLaunch(_EditorConfig.geo(), uri.substring(4));
+    }
+
+    const searchPrefix = 'https://www.google.com/search?q=';
+    if (uri.startsWith(searchPrefix)) {
+      return _EditorLaunch(
+        _EditorConfig.search(),
+        Uri.decodeQueryComponent(uri.substring(searchPrefix.length)),
+      );
+    }
+
+    const mapsPrefix = 'https://maps.google.com/?q=';
+    if (uri.startsWith(mapsPrefix)) {
+      return _EditorLaunch(
+        _EditorConfig.address(),
+        Uri.decodeQueryComponent(uri.substring(mapsPrefix.length)),
+      );
+    }
+
+    const playStorePrefix = 'https://play.google.com/store/apps/details?id=';
+    if (uri.startsWith(playStorePrefix)) {
+      return _EditorLaunch(
+        _EditorConfig.playStore(),
+        Uri.decodeQueryComponent(uri.substring(playStorePrefix.length)),
+      );
+    }
+
+    const instagramPrefix = 'https://instagram.com/';
+    if (uri.startsWith(instagramPrefix)) {
+      return _EditorLaunch(_EditorConfig.instagram(), uri.substring(instagramPrefix.length));
+    }
+
+    if (uri.startsWith('bitcoin:')) {
+      return _EditorLaunch(_EditorConfig.bitcoin(), uri.substring('bitcoin:'.length));
+    }
+
+    if (uri.startsWith('ethereum:')) {
+      return _EditorLaunch(_EditorConfig.ethereum(), uri.substring('ethereum:'.length));
+    }
+
+    return _EditorLaunch(_EditorConfig.url(), uri);
+  }
+}
+
+final class _EditorLaunch {
+  const _EditorLaunch(this.config, this.initialValue);
+
+  final _EditorConfig config;
+  final String initialValue;
 }
 
 class _RecordTypePage extends StatefulWidget {
@@ -20,7 +106,6 @@ class _RecordTypePage extends StatefulWidget {
 
   @override
   State<_RecordTypePage> createState() => _RecordTypePageState();
-
 }
 
 class _RecordTypePageState extends State<_RecordTypePage> {
@@ -37,27 +122,29 @@ class _RecordTypePageState extends State<_RecordTypePage> {
   Widget build(BuildContext context) {
     final options = _allOptions(context);
     final query = _searchController.text.trim().toLowerCase();
-    final filtered = options.where((option) {
-      final categoryMatches =
-          _selectedCategory == null || option.category == _selectedCategory;
-      if (!categoryMatches) return false;
-      if (query.isEmpty) return true;
+    final filtered = options
+        .where((option) {
+          final categoryMatches =
+              _selectedCategory == null || option.category == _selectedCategory;
+          if (!categoryMatches) return false;
+          if (query.isEmpty) return true;
 
-      final haystack =
-          '${option.title} ${option.subtitle} ${option.searchTerms.join(' ')}'
-              .toLowerCase();
-      return haystack.contains(query);
-    }).toList(growable: false);
+          final haystack =
+              '${option.title} ${option.subtitle} ${option.searchTerms.join(' ')}'
+                  .toLowerCase();
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
 
     final grouped = <_RecordTypeCategory, List<_RecordTypeOption>>{};
     for (final option in filtered) {
-      grouped.putIfAbsent(option.category, () => <_RecordTypeOption>[]).add(
-        option,
-      );
+      grouped
+          .putIfAbsent(option.category, () => <_RecordTypeOption>[])
+          .add(option);
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Kayit tipi secin')),
+      appBar: AppBar(title: const Text('Kayıt tipi seçin')),
       body: Column(
         children: [
           Padding(
@@ -71,7 +158,7 @@ class _RecordTypePageState extends State<_RecordTypePage> {
               controller: _searchController,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Kayit tipi ara (metin, telefon, vcard...)',
+                hintText: 'Kayıt tipi ara (metin, telefon, vCard...)',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isEmpty
                     ? null
@@ -91,7 +178,7 @@ class _RecordTypePageState extends State<_RecordTypePage> {
             child: Row(
               children: [
                 ChoiceChip(
-                  label: const Text('Tum tipler'),
+                  label: const Text('Tüm tipler'),
                   selected: _selectedCategory == null,
                   onSelected: (_) {
                     setState(() {
@@ -125,7 +212,7 @@ class _RecordTypePageState extends State<_RecordTypePage> {
                     child: Padding(
                       padding: EdgeInsets.all(AppSpacing.lg),
                       child: Text(
-                        'Aramana uygun kayit tipi bulunamadi.',
+                        'Aramana uygun kayıt tipi bulunamadı.',
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -151,19 +238,6 @@ class _RecordTypePageState extends State<_RecordTypePage> {
                         .toList(growable: false),
                   ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.lg,
-            ),
-            child: Text(
-              'Diger kayit tipleri (WiFi, Bluetooth, uygulama…) '
-              'T3 is kolunda ekleniyor.',
-              textAlign: TextAlign.center,
-            ),
-          ),
         ],
       ),
     );
@@ -174,23 +248,31 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       category: _RecordTypeCategory.basic,
       icon: Icons.text_fields,
       title: 'Metin',
-      subtitle: 'Duz metin kaydi',
+      subtitle: 'Düz metin kaydı',
       searchTerms: const <String>['text', 'yazi'],
       onTap: () => _openEditor(context, _EditorConfig.text()),
     ),
     _RecordTypeOption(
       category: _RecordTypeCategory.basic,
       icon: Icons.link,
-      title: 'Baglanti / URL',
+      title: 'Bağlantı / URL',
       subtitle: 'Web adresi, telefon, e-posta',
       searchTerms: const <String>['url', 'link', 'web'],
       onTap: () => _openEditor(context, _EditorConfig.url()),
     ),
     _RecordTypeOption(
+      category: _RecordTypeCategory.basic,
+      icon: Icons.search,
+      title: 'Arama',
+      subtitle: 'Google arama bağlantısı oluşturur',
+      searchTerms: const <String>['google', 'query', 'arama'],
+      onTap: () => _openEditor(context, _EditorConfig.search()),
+    ),
+    _RecordTypeOption(
       category: _RecordTypeCategory.contact,
       icon: Icons.call_outlined,
       title: 'Telefon',
-      subtitle: 'Arama icin tel: kaydi',
+      subtitle: 'Arama için tel: kaydı',
       searchTerms: const <String>['tel', 'call', 'arama'],
       onTap: () => _openEditor(context, _EditorConfig.phone()),
     ),
@@ -198,7 +280,7 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       category: _RecordTypeCategory.contact,
       icon: Icons.sms_outlined,
       title: 'SMS',
-      subtitle: 'Mesaj icin sms: kaydi',
+      subtitle: 'Mesaj için sms: kaydı',
       searchTerms: const <String>['mesaj', 'text'],
       onTap: () => _openEditor(context, _EditorConfig.sms()),
     ),
@@ -206,7 +288,7 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       category: _RecordTypeCategory.contact,
       icon: Icons.email_outlined,
       title: 'E-posta',
-      subtitle: 'Mail icin mailto: kaydi',
+      subtitle: 'Mail için mailto: kaydı',
       searchTerms: const <String>['mail', 'email'],
       onTap: () => _openEditor(context, _EditorConfig.email()),
     ),
@@ -214,15 +296,63 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       category: _RecordTypeCategory.location,
       icon: Icons.place_outlined,
       title: 'Konum',
-      subtitle: 'Harita icin geo: kaydi',
+      subtitle: 'Harita için geo: kaydı',
       searchTerms: const <String>['geo', 'harita', 'adres'],
       onTap: () => _openEditor(context, _EditorConfig.geo()),
     ),
     _RecordTypeOption(
+      category: _RecordTypeCategory.location,
+      icon: Icons.map_outlined,
+      title: 'Adres',
+      subtitle: 'Harita sorgusu olarak açılır',
+      searchTerms: const <String>['maps', 'konum', 'adres'],
+      onTap: () => _openEditor(context, _EditorConfig.address()),
+    ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.web,
+      icon: Icons.video_collection_outlined,
+      title: 'YouTube videosu',
+      subtitle: 'Video bağlantısı oluşturur',
+      searchTerms: const <String>['youtube', 'video'],
+      onTap: () => _openEditor(context, _EditorConfig.youtube()),
+    ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.web,
+      icon: Icons.apps_outlined,
+      title: 'Play Store uygulaması',
+      subtitle: 'Uygulama sayfasını açar',
+      searchTerms: const <String>['play', 'store', 'app'],
+      onTap: () => _openEditor(context, _EditorConfig.playStore()),
+    ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.web,
+      icon: Icons.alternate_email,
+      title: 'Instagram profili',
+      subtitle: 'Kullanıcı adına göre profil bağlantısı',
+      searchTerms: const <String>['instagram', 'social', 'profil'],
+      onTap: () => _openEditor(context, _EditorConfig.instagram()),
+    ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.payment,
+      icon: Icons.currency_bitcoin,
+      title: 'Bitcoin ödeme',
+      subtitle: 'bitcoin: URI kaydı',
+      searchTerms: const <String>['bitcoin', 'btc', 'kripto'],
+      onTap: () => _openEditor(context, _EditorConfig.bitcoin()),
+    ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.payment,
+      icon: Icons.token,
+      title: 'Ethereum ödeme',
+      subtitle: 'ethereum: URI kaydı',
+      searchTerms: const <String>['ethereum', 'eth', 'kripto'],
+      onTap: () => _openEditor(context, _EditorConfig.ethereum()),
+    ),
+    _RecordTypeOption(
       category: _RecordTypeCategory.contact,
       icon: Icons.badge_outlined,
-      title: 'vCard (Kisi karti)',
-      subtitle: 'Ad, telefon, e-posta, sirket ve daha fazlasi',
+      title: 'vCard (Kişi kartı)',
+      subtitle: 'Ad, telefon, e-posta, şirket ve daha fazlası',
       searchTerms: const <String>['kartvizit', 'contact', 'vcard'],
       onTap: () => _openVCardEditor(context),
     ),
@@ -247,8 +377,10 @@ class _RecordTypePageState extends State<_RecordTypePage> {
 
 enum _RecordTypeCategory {
   basic('Temel'),
-  contact('Iletisim'),
-  location('Konum');
+  contact('İletişim'),
+  location('Konum'),
+  web('Web ve Uygulama'),
+  payment('Ödeme');
 
   const _RecordTypeCategory(this.label);
   final String label;
@@ -285,17 +417,15 @@ class _CategoryHeader extends StatelessWidget {
       AppSpacing.lg,
       AppSpacing.xs,
     ),
-    child: Text(
-      label,
-      style: Theme.of(context).textTheme.titleSmall,
-    ),
+    child: Text(label, style: Theme.of(context).textTheme.titleSmall),
   );
 }
 
 class _RecordInputPage extends StatefulWidget {
-  const _RecordInputPage({required this.config});
+  const _RecordInputPage({required this.config, this.initialValue = ''});
 
   final _EditorConfig config;
+  final String initialValue;
 
   @override
   State<_RecordInputPage> createState() => _RecordInputPageState();
@@ -307,7 +437,7 @@ class _RecordInputPageState extends State<_RecordInputPage> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
+    _controller = TextEditingController(text: widget.initialValue);
   }
 
   @override
@@ -360,7 +490,9 @@ class _RecordInputPageState extends State<_RecordInputPage> {
 }
 
 class _VCardInputPage extends StatefulWidget {
-  const _VCardInputPage();
+  const _VCardInputPage({this.initial});
+
+  final VCardContent? initial;
 
   @override
   State<_VCardInputPage> createState() => _VCardInputPageState();
@@ -381,16 +513,17 @@ class _VCardInputPageState extends State<_VCardInputPage> {
   @override
   void initState() {
     super.initState();
-    _fullName = TextEditingController();
-    _givenName = TextEditingController();
-    _familyName = TextEditingController();
-    _phone = TextEditingController();
-    _email = TextEditingController();
-    _organization = TextEditingController();
-    _title = TextEditingController();
-    _address = TextEditingController();
-    _url = TextEditingController();
-    _note = TextEditingController();
+    final initial = widget.initial;
+    _fullName = TextEditingController(text: initial?.formattedName ?? '');
+    _givenName = TextEditingController(text: initial?.givenName ?? '');
+    _familyName = TextEditingController(text: initial?.familyName ?? '');
+    _phone = TextEditingController(text: _firstOrNull(initial?.phones) ?? '');
+    _email = TextEditingController(text: _firstOrNull(initial?.emails) ?? '');
+    _organization = TextEditingController(text: initial?.organization ?? '');
+    _title = TextEditingController(text: initial?.title ?? '');
+    _address = TextEditingController(text: initial?.address ?? '');
+    _url = TextEditingController(text: initial?.url ?? '');
+    _note = TextEditingController(text: initial?.note ?? '');
   }
 
   @override
@@ -410,7 +543,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('vCard olustur')),
+    appBar: AppBar(title: const Text('vCard oluştur')),
     body: SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -461,7 +594,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
               labelText: 'E-posta',
-              hintText: 'ornek@alan.com',
+              hintText: 'örnek@alan.com',
               prefixIcon: Icon(Icons.email_outlined),
             ),
           ),
@@ -470,7 +603,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
             controller: _organization,
             textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
-              labelText: 'Sirket',
+              labelText: 'Şirket',
               hintText: 'NFC Toolkit',
             ),
           ),
@@ -489,7 +622,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
             textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
               labelText: 'Adres',
-              hintText: 'Istanbul, Turkiye',
+              hintText: 'İstanbul, Türkiye',
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -499,7 +632,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
               labelText: 'Web sitesi',
-              hintText: 'https://ornek.com',
+              hintText: 'https://örnek.com',
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -515,10 +648,7 @@ class _VCardInputPageState extends State<_VCardInputPage> {
           const SizedBox(height: AppSpacing.lg),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
-              onPressed: _submit,
-              child: const Text('Ekle'),
-            ),
+            child: FilledButton(onPressed: _submit, child: const Text('Ekle')),
           ),
         ],
       ),
@@ -528,9 +658,9 @@ class _VCardInputPageState extends State<_VCardInputPage> {
   void _submit() {
     final formattedName = _fullName.text.trim();
     if (formattedName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tam ad zorunlu')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tam ad zorunlu')));
       return;
     }
 
@@ -557,6 +687,11 @@ class _VCardInputPageState extends State<_VCardInputPage> {
     final trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
+
+  String? _firstOrNull(List<String>? values) {
+    if (values == null || values.isEmpty) return null;
+    return values.first;
+  }
 }
 
 final class _EditorConfig {
@@ -577,24 +712,34 @@ final class _EditorConfig {
   final NdefContent Function(String value) build;
 
   factory _EditorConfig.text() => _EditorConfig(
-    title: 'Metin kaydi',
+    title: 'Metin kaydı',
     label: 'Metin',
     icon: Icons.text_fields,
     build: (value) => TextContent(text: value),
   );
 
   factory _EditorConfig.url() => const _EditorConfig(
-    title: 'Baglanti kaydi',
+    title: 'Bağlantı kaydı',
     label: 'URL',
-    hint: 'https://ornek.com',
+    hint: 'https://örnek.com',
     icon: Icons.link,
     keyboardType: TextInputType.url,
     build: UriContent.new,
   );
 
+  factory _EditorConfig.search() => _EditorConfig(
+    title: 'Arama kaydı',
+    label: 'Arama metni',
+    hint: 'nfc toolkit',
+    icon: Icons.search,
+    build: (value) => UriContent(
+      'https://www.google.com/search?q=${Uri.encodeQueryComponent(value)}',
+    ),
+  );
+
   factory _EditorConfig.phone() => _EditorConfig(
-    title: 'Telefon kaydi',
-    label: 'Telefon numarasi',
+    title: 'Telefon kaydı',
+    label: 'Telefon numarası',
     hint: '+905551112233',
     icon: Icons.call_outlined,
     keyboardType: TextInputType.phone,
@@ -602,8 +747,8 @@ final class _EditorConfig {
   );
 
   factory _EditorConfig.sms() => _EditorConfig(
-    title: 'SMS kaydi',
-    label: 'Telefon numarasi',
+    title: 'SMS kaydı',
+    label: 'Telefon numarası',
     hint: '+905551112233',
     icon: Icons.sms_outlined,
     keyboardType: TextInputType.phone,
@@ -611,16 +756,16 @@ final class _EditorConfig {
   );
 
   factory _EditorConfig.email() => _EditorConfig(
-    title: 'E-posta kaydi',
+    title: 'E-posta kaydı',
     label: 'E-posta adresi',
-    hint: 'ornek@alan.com',
+    hint: 'örnek@alan.com',
     icon: Icons.email_outlined,
     keyboardType: TextInputType.emailAddress,
     build: (value) => UriContent('mailto:$value'),
   );
 
   factory _EditorConfig.geo() => _EditorConfig(
-    title: 'Konum kaydi',
+    title: 'Konum kaydı',
     label: 'Enlem,Boylam',
     hint: '41.0082,28.9784',
     icon: Icons.place_outlined,
@@ -629,5 +774,58 @@ final class _EditorConfig {
       signed: true,
     ),
     build: (value) => UriContent('geo:$value'),
+  );
+
+  factory _EditorConfig.address() => _EditorConfig(
+    title: 'Adres kaydı',
+    label: 'Adres veya yer',
+    hint: 'Kadıköy İstanbul',
+    icon: Icons.map_outlined,
+    build: (value) => UriContent(
+      'https://maps.google.com/?q=${Uri.encodeQueryComponent(value)}',
+    ),
+  );
+
+  factory _EditorConfig.youtube() => const _EditorConfig(
+    title: 'YouTube videosu',
+    label: 'Video URL',
+    hint: 'https://www.youtube.com/watch?v=...',
+    icon: Icons.video_collection_outlined,
+    keyboardType: TextInputType.url,
+    build: UriContent.new,
+  );
+
+  factory _EditorConfig.playStore() => _EditorConfig(
+    title: 'Play Store uygulaması',
+    label: 'Paket adı',
+    hint: 'com.example.app',
+    icon: Icons.apps_outlined,
+    build: (value) => UriContent(
+      'https://play.google.com/store/apps/details?id=${Uri.encodeQueryComponent(value)}',
+    ),
+  );
+
+  factory _EditorConfig.instagram() => _EditorConfig(
+    title: 'Instagram profili',
+    label: 'Kullanıcı adı',
+    hint: 'kullanıcıadı',
+    icon: Icons.alternate_email,
+    build: (value) => UriContent('https://instagram.com/$value'),
+  );
+
+  factory _EditorConfig.bitcoin() => _EditorConfig(
+    title: 'Bitcoin ödeme kaydı',
+    label: 'BTC adresi',
+    hint: 'bc1q...',
+    icon: Icons.currency_bitcoin,
+    build: (value) => UriContent('bitcoin:$value'),
+  );
+
+  factory _EditorConfig.ethereum() => _EditorConfig(
+    title: 'Ethereum ödeme kaydı',
+    label: 'ETH adresi',
+    hint: '0x...',
+    icon: Icons.token,
+    build: (value) => UriContent('ethereum:$value'),
   );
 }

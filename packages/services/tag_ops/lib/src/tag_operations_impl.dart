@@ -14,8 +14,8 @@ import 'ntag_layout.dart';
 ///
 /// Sahibi: **T4** (bkz. `.claude/tracks/T4-tools.md`)
 ///
-/// Su an yalnizca **okuma tarafi** uygulanmistir. Yikici islemler
-/// `NotImplementedYet` doner ve ilgili gorev kodunu tasir.
+/// Su an okuma tarafi ve bazi yikici araclar uygulanmistir.
+/// Kalan islemler `NotImplementedYet` doner ve ilgili gorev kodunu tasir.
 final class TagOperationsImpl implements TagOperations {
   const TagOperationsImpl();
 
@@ -461,21 +461,156 @@ final class TagOperationsImpl implements TagOperations {
   Future<Result<void>> formatNdef(
     NfcTagHandle tag, {
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.19'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    if (tag.hasNdef) {
+      return writeNdef(tag, NdefMessageEntity.empty(), verify: false);
+    }
+
+    return tag.formatNdef(NdefMessageEntity.empty());
+  }
 
   @override
   Future<Result<void>> setPassword(
     NfcTagHandle tag, {
     required PasswordSetup setup,
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.21'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    final layoutResult = await _resolveLayout(tag);
+    if (layoutResult case Err(:final failure)) return Err(failure);
+    final layout = (layoutResult as Ok<NtagLayout>).value;
+
+    final configPage = layout.configPage;
+    final passwordPage = layout.passwordPage;
+    final packPage = layout.packPage;
+    if (!layout.supportsPassword ||
+        configPage == null ||
+        passwordPage == null ||
+        packPage == null) {
+      return const Err(
+        TagNotSupported(detail: 'Bu yongada sifre korumasi desteklenmiyor'),
+      );
+    }
+
+    if (setup.protectFromPage < 0 || setup.protectFromPage > 0xFF) {
+      return const Err(InvalidArgument('AUTH0 (protectFromPage) 0-255 olmali'));
+    }
+
+    final configPagesResult = await tag.readUltralightPages(configPage);
+    if (configPagesResult case Err(:final failure)) return Err(failure);
+    final configPages = (configPagesResult as Ok<Uint8List>).value;
+    if (configPages.length < 16) {
+      return const Err(MalformedData('Yapilandirma sayfalari eksik dondu'));
+    }
+
+    final cfg0 = Uint8List.fromList(configPages.sublist(0, 4));
+    final cfg1 = Uint8List.fromList(configPages.sublist(4, 8));
+    final oldPackPage = Uint8List.fromList(configPages.sublist(12, 16));
+
+    var access = cfg1[0] & 0x70;
+    access |= setup.authLimit & 0x07;
+    if (setup.protectCounter) access |= 0x08;
+    if (setup.scope == PasswordProtectionScope.readAndWrite) {
+      access |= 0x80;
+    }
+    cfg1[0] = access;
+
+    cfg0[3] = setup.protectFromPage & 0xFF;
+
+    final newPackPage = Uint8List.fromList([
+      setup.pack[0],
+      setup.pack[1],
+      oldPackPage[2],
+      oldPackPage[3],
+    ]);
+
+    // Kritik sira: PWD -> PACK -> CFG1(ACCESS) -> CFG0(AUTH0)
+    final writePwdFailure = await _writePage(tag, passwordPage, setup.password);
+    if (writePwdFailure != null) return Err(writePwdFailure);
+
+    final writePackFailure = await _writePage(tag, packPage, newPackPage);
+    if (writePackFailure != null) return Err(writePackFailure);
+
+    final writeCfg1Failure = await _writePage(tag, configPage + 1, cfg1);
+    if (writeCfg1Failure != null) return Err(writeCfg1Failure);
+
+    final writeCfg0Failure = await _writePage(tag, configPage, cfg0);
+    if (writeCfg0Failure != null) return Err(writeCfg0Failure);
+
+    return okVoid;
+  }
 
   @override
   Future<Result<void>> removePassword(
     NfcTagHandle tag, {
     required Uint8List currentPassword,
     required DangerAck ack,
-  }) async => const Err(NotImplementedYet('T4.22'));
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    final authResult = await authenticate(tag, currentPassword);
+    if (authResult case Err(:final failure)) return Err(failure);
+
+    final layoutResult = await _resolveLayout(tag);
+    if (layoutResult case Err(:final failure)) return Err(failure);
+    final layout = (layoutResult as Ok<NtagLayout>).value;
+
+    final configPage = layout.configPage;
+    final passwordPage = layout.passwordPage;
+    final packPage = layout.packPage;
+    if (!layout.supportsPassword ||
+        configPage == null ||
+        passwordPage == null ||
+        packPage == null) {
+      return const Err(
+        TagNotSupported(detail: 'Bu yongada sifre korumasi desteklenmiyor'),
+      );
+    }
+
+    final configPagesResult = await tag.readUltralightPages(configPage);
+    if (configPagesResult case Err(:final failure)) return Err(failure);
+    final configPages = (configPagesResult as Ok<Uint8List>).value;
+    if (configPages.length < 16) {
+      return const Err(MalformedData('Yapilandirma sayfalari eksik dondu'));
+    }
+
+    final cfg0 = Uint8List.fromList(configPages.sublist(0, 4));
+    final cfg1 = Uint8List.fromList(configPages.sublist(4, 8));
+    final oldPackPage = Uint8List.fromList(configPages.sublist(12, 16));
+
+    // Korumayi kaldir: AUTH0=0xFF ve ACCESS koruma bitlerini temizle.
+    cfg0[3] = 0xFF;
+    cfg1[0] = cfg1[0] & 0x70;
+
+    final zeroPwdPage = Uint8List(4);
+    final zeroPackPage = Uint8List.fromList([
+      0x00,
+      0x00,
+      oldPackPage[2],
+      oldPackPage[3],
+    ]);
+
+    // Kaldirma sirasi: AUTH0 kapat -> PWD/PACK temizle -> ACCESS temizle
+    final writeCfg0Failure = await _writePage(tag, configPage, cfg0);
+    if (writeCfg0Failure != null) return Err(writeCfg0Failure);
+
+    final writePwdFailure = await _writePage(tag, passwordPage, zeroPwdPage);
+    if (writePwdFailure != null) return Err(writePwdFailure);
+
+    final writePackFailure = await _writePage(tag, packPage, zeroPackPage);
+    if (writePackFailure != null) return Err(writePackFailure);
+
+    final writeCfg1Failure = await _writePage(tag, configPage + 1, cfg1);
+    if (writeCfg1Failure != null) return Err(writeCfg1Failure);
+
+    return okVoid;
+  }
 
   @override
   Future<Result<void>> changePassword(
@@ -571,6 +706,18 @@ final class TagOperationsImpl implements TagOperations {
     required Uint8List data,
     required DangerAck ack,
   }) async => const Err(NotImplementedYet('T4.34'));
+
+  Future<NfcFailure?> _writePage(
+    NfcTagHandle tag,
+    int page,
+    Uint8List data,
+  ) async {
+    final result = await tag.writeUltralightPage(page, data);
+    return switch (result) {
+      Ok() => null,
+      Err(:final failure) => failure,
+    };
+  }
 
   // =====================================================================
   // Yardimcilar

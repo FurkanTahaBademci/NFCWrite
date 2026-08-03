@@ -7,7 +7,7 @@ import 'package:localization/localization.dart';
 import '../../application/providers.dart';
 import '../../domain/tool_catalog.dart';
 
-/// "Diger" sekmesi — araclar risk seviyesine gore gruplanmis izgara.
+/// "Diğer" sekmesi — araçlar risk seviyesine göre gruplanmış ızgara.
 class ToolsPage extends ConsumerWidget {
   const ToolsPage({super.key});
 
@@ -77,7 +77,7 @@ class ToolsPage extends ConsumerWidget {
               title: tool.title,
               description: tool.implemented
                   ? tool.description
-                  : '${tool.description} · yakinda',
+                  : '${tool.description} · yakında',
               icon: tool.icon,
               risk: tool.risk,
               enabled: tool.implemented,

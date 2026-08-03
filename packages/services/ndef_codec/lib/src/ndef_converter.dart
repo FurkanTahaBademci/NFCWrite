@@ -290,9 +290,7 @@ abstract final class NdefConverter {
 
     lines.add('END:VCARD');
 
-    final vcard = lines
-        .expand(_foldVCardLine)
-        .join('\r\n');
+    final vcard = lines.expand(_foldVCardLine).join('\r\n');
 
     return NdefRecordEntity(
       typeNameFormat: NdefTypeNameFormat.media,
@@ -361,14 +359,13 @@ abstract final class NdefConverter {
     }
   }
 
-  static String _escapeVCard(String value) =>
-      value
-          .replaceAll('\\', r'\\')
-          .replaceAll(';', r'\;')
-          .replaceAll(',', r'\,')
-          .replaceAll('\r\n', r'\n')
-          .replaceAll('\n', r'\n')
-          .replaceAll('\r', r'\n');
+  static String _escapeVCard(String value) => value
+      .replaceAll('\\', r'\\')
+      .replaceAll(';', r'\;')
+      .replaceAll(',', r'\,')
+      .replaceAll('\r\n', r'\n')
+      .replaceAll('\n', r'\n')
+      .replaceAll('\r', r'\n');
 
   static String _unescapeVCard(String value) {
     var result = value.replaceAllMapped(RegExp(r'\\[nN]'), (_) => '\n');

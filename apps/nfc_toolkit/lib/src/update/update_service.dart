@@ -13,7 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'version_info.dart';
 
 const String _defaultVersionInfoUrl =
-  'https://raw.githubusercontent.com/FurkanTahaBademci/NFCWrite/main/releases/version.json';
+    'https://raw.githubusercontent.com/FurkanTahaBademci/NFCWrite/main/releases/version.json';
 const _platform = MethodChannel('nfc_toolkit/system');
 
 final class UpdateService {
@@ -36,6 +36,8 @@ final class UpdateService {
   );
 
   Future<UpdateCheckResult> checkForUpdate() async {
+    await cleanupCachedApks();
+
     if (versionInfoUrl.trim().isEmpty) {
       return const UpdateCheckResult.noUpdate();
     }
@@ -85,6 +87,8 @@ final class UpdateService {
     required VersionInfo versionInfo,
     required void Function(double progress) onProgress,
   }) async {
+    await cleanupCachedApks();
+
     final tempDir = await getTemporaryDirectory();
     final filePath =
         '${tempDir.path}/nfc_toolkit_${versionInfo.version}_${versionInfo.buildNumber}.apk';
@@ -118,6 +122,29 @@ final class UpdateService {
     }
 
     return target;
+  }
+
+  /// Daha once indirilen APK dosyalarini temizler.
+  Future<void> cleanupCachedApks() async {
+    final tempDir = await getTemporaryDirectory();
+    final entities = tempDir.listSync();
+
+    for (final entity in entities) {
+      if (entity is! File) continue;
+
+      final name = entity.uri.pathSegments.isEmpty
+          ? ''
+          : entity.uri.pathSegments.last;
+      if (!name.startsWith('nfc_toolkit_') || !name.endsWith('.apk')) {
+        continue;
+      }
+
+      try {
+        await entity.delete();
+      } on FileSystemException {
+        // Silinemeyen dosya guncelleme akisini kesmemeli.
+      }
+    }
   }
 
   Future<bool> canInstallUnknownApps() async {

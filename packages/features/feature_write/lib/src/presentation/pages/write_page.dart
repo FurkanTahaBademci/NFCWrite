@@ -8,9 +8,6 @@ import '../../application/write_controller.dart';
 import '../widgets/record_type_sheet.dart';
 
 /// Yazma sekmesi.
-///
-/// **Iskelet.** Su an yalnizca metin ve baglanti kaydi eklenebiliyor;
-/// 26 kayit tipinin sihirbazlari T3'un isi (bkz. `.claude/tracks/T3-write.md`).
 class WritePage extends ConsumerStatefulWidget {
   const WritePage({super.key});
 
@@ -27,9 +24,11 @@ class _WritePageState extends ConsumerState<WritePage> {
 
     ref.listen<WriteState>(writeControllerProvider, (previous, next) {
       final wasBusy =
+          previous?.phase == WritePhase.probingTag ||
           previous?.phase == WritePhase.waitingForTag ||
           previous?.phase == WritePhase.writing;
       final isBusy =
+          next.phase == WritePhase.probingTag ||
           next.phase == WritePhase.waitingForTag ||
           next.phase == WritePhase.writing;
 
@@ -61,15 +60,10 @@ class _WritePageState extends ConsumerState<WritePage> {
             )
           : Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: CapacityBar(
-                    used: state.byteLength,
-                    // Hedef etiket henuz bilinmiyor; en yaygin kapasiteyi
-                    // (NTAG213 = 144 byte) referans aliyoruz. Gercek kontrol
-                    // yazma aninda `InsufficientSpace` ile yapilir.
-                    total: 144,
-                  ),
+                _CapacitySection(
+                  used: state.byteLength,
+                  total: state.targetCapacityBytes,
+                  onProbe: controller.probeTargetCapacity,
                 ),
                 Expanded(
                   child: ReorderableListView.builder(
@@ -97,12 +91,19 @@ class _WritePageState extends ConsumerState<WritePage> {
                         child: Card(
                           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                           child: ListTile(
+                            onTap: () => _editRecord(index: index, record: record),
                             leading: const Icon(Icons.drag_indicator),
                             title: Text(_labelFor(record)),
                             subtitle: Text(
                               record.summary,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              tooltip: 'Düzenle',
+                              onPressed: () =>
+                                  _editRecord(index: index, record: record),
                             ),
                           ),
                         ),
@@ -147,6 +148,17 @@ class _WritePageState extends ConsumerState<WritePage> {
     ref.read(writeControllerProvider.notifier).addRecord(content);
   }
 
+  Future<void> _editRecord({
+    required int index,
+    required NdefContent record,
+  }) async {
+    final updated = await RecordTypeSheet.edit(context, record);
+    if (updated == null || !mounted) return;
+    ref
+        .read(writeControllerProvider.notifier)
+        .updateRecord(index: index, content: updated);
+  }
+
   void _openScanSheet() {
     final l10n = AppLocalizations.of(context);
     showModalBottomSheet<void>(
@@ -158,6 +170,7 @@ class _WritePageState extends ConsumerState<WritePage> {
           final state = ref.watch(writeControllerProvider);
           return NfcScanSheet(
             phase: switch (state.phase) {
+              WritePhase.probingTag => NfcScanPhase.scanning,
               WritePhase.waitingForTag => NfcScanPhase.scanning,
               WritePhase.writing => NfcScanPhase.working,
               WritePhase.success => NfcScanPhase.success,
@@ -165,9 +178,11 @@ class _WritePageState extends ConsumerState<WritePage> {
               WritePhase.editing => NfcScanPhase.idle,
             },
             title: l10n.scanTitle,
-            message: state.phase == WritePhase.writing
-                ? l10n.scanWorking
-                : l10n.scanHint,
+            message: switch (state.phase) {
+              WritePhase.writing => l10n.scanWorking,
+              WritePhase.probingTag => 'Kart kapasitesi okunuyor...',
+              _ => l10n.scanHint,
+            },
             onCancel: () => ref.read(writeControllerProvider.notifier).cancel(),
           );
         },
@@ -182,6 +197,14 @@ class _WritePageState extends ConsumerState<WritePage> {
 
     if (state.phase == WritePhase.success) {
       messenger.showSnackBar(SnackBar(content: Text(l10n.scanSuccess)));
+    } else if (state.phase == WritePhase.editing && state.targetCapacityBytes != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Kart kapasitesi okundu: ${state.targetCapacityBytes} byte',
+          ),
+        ),
+      );
     } else if (failure != null) {
       messenger.showSnackBar(SnackBar(content: Text(l10n.messageFor(failure))));
     }
@@ -190,11 +213,55 @@ class _WritePageState extends ConsumerState<WritePage> {
 
   static String _labelFor(NdefContent content) => switch (content) {
     TextContent() => 'Metin',
-    UriContent() => 'Baglanti',
+    UriContent() => 'Bağlantı',
     VCardContent() => 'vCard',
     MimeContent(:final mimeType) => mimeType,
     ExternalContent() => 'Harici tip',
-    EmptyContent() => 'Bos kayit',
+    EmptyContent() => 'Boş kayıt',
     RawContent() => 'Ham veri',
   };
+}
+
+class _CapacitySection extends StatelessWidget {
+  const _CapacitySection({
+    required this.used,
+    required this.total,
+    required this.onProbe,
+  });
+
+  final int used;
+  final int? total;
+  final Future<void> Function() onProbe;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (total != null)
+            CapacityBar(used: used, total: total!)
+          else
+            Text(
+              'Mevcut veri boyutu: $used byte\n'
+              'Kart kapasitesi bilinmiyor. Kart okunmadan limit gösterilmez.',
+              style: theme.textTheme.bodyMedium,
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: _handleProbeTap,
+            icon: const Icon(Icons.nfc),
+            label: Text(total == null ? 'Kart kapasitesini tara' : 'Tekrar tara'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleProbeTap() {
+    onProbe();
+  }
 }

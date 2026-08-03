@@ -1,5 +1,5 @@
-/// "Diger" sekmesi — kopyalama, kilitleme, temizleme, bicimlendirme,
-/// sifre yonetimi, bellek dokumu ve ham komut konsolu.
+/// "Diğer" sekmesi — kopyalama, kilitleme, temizleme, biçimlendirme,
+/// şifre yönetimi, bellek dökümü ve ham komut konsolu.
 ///
 /// Sahibi: **T4** (bkz. `.claude/tracks/T4-tools.md`)
 library;

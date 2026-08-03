@@ -289,6 +289,102 @@ void main() {
     });
   });
 
+  group('Sifre ve bicimlendirme', () {
+    test('setPassword sirasiyla PWD, PACK, CFG1, CFG0 yazar', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        rules: [
+          FakeTransceiveRule(
+            commandHex: '60',
+            response: hexToBytes('0004040201000F03'),
+          ),
+        ],
+      );
+
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+      final result = await operations.setPassword(
+        tag,
+        setup: PasswordSetup(
+          password: hexToBytes('01020304'),
+          pack: hexToBytes('A1B2'),
+          protectFromPage: 0x04,
+          scope: PasswordProtectionScope.readAndWrite,
+          authLimit: 5,
+          protectCounter: true,
+        ),
+        ack: ack,
+      );
+
+      expect(result, isA<Ok<void>>());
+      expect(
+        tag.writtenPages.map((entry) => entry.page).toList(growable: false),
+        [0x2B, 0x2C, 0x2A, 0x29],
+      );
+
+      final cfg1Write = tag.writtenPages[2].data;
+      final cfg0Write = tag.writtenPages[3].data;
+      expect(cfg1Write[0], 0x8D); // PROT=1, NFC_CNT_PWD_PROT=1, AUTHLIM=5
+      expect(cfg0Write[3], 0x04); // AUTH0
+    });
+
+    test('removePassword once dogrular sonra korumayi kapatir', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        rules: [
+          FakeTransceiveRule(
+            commandHex: '1B01020304',
+            response: hexToBytes('A1B2'),
+          ),
+          FakeTransceiveRule(
+            commandHex: '60',
+            response: hexToBytes('0004040201000F03'),
+          ),
+        ],
+      );
+
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+      final result = await operations.removePassword(
+        tag,
+        currentPassword: hexToBytes('01020304'),
+        ack: ack,
+      );
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.sentCommands.map(bytesToHex), contains('1B01020304'));
+      expect(
+        tag.writtenPages.map((entry) => entry.page).toList(growable: false),
+        [0x29, 0x2B, 0x2C, 0x2A],
+      );
+
+      final cfg0Write = tag.writtenPages[0].data;
+      final pwdWrite = tag.writtenPages[1].data;
+      final packWrite = tag.writtenPages[2].data;
+      final cfg1Write = tag.writtenPages[3].data;
+      expect(cfg0Write[3], 0xFF);
+      expect(bytesToHex(pwdWrite), '00000000');
+      expect(packWrite[0], 0x00);
+      expect(packWrite[1], 0x00);
+      expect(cfg1Write[0], 0x00);
+    });
+
+    test('formatNdef NDEF olmayan etikette bicimlendirme cagirir', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        technologies: const [
+          TagTechnology.nfcA,
+          TagTechnology.mifareUltralight,
+        ],
+        ndefCapabilities: null,
+      );
+
+      final ack = DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+      final result = await operations.formatNdef(tag, ack: ack);
+
+      expect(result, isA<Ok<void>>());
+      expect(tag.lastWrittenNdef?.isEmpty, isTrue);
+    });
+  });
+
   // Kullanilmayan sabitleri analiz uyarisi vermesin diye referansla.
   test('ornek surum dizileri gecerli', () {
     expect(_ntag213Version.length, 8);

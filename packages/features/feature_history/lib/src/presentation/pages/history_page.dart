@@ -46,9 +46,20 @@ class HistoryPage extends ConsumerWidget {
                 itemCount: list.length,
                 separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) =>
-                    _HistoryTile(record: list[index]),
+                    _HistoryTile(
+                      record: list[index],
+                      onTap: () => _showDetails(context, list[index]),
+                    ),
               ),
       ),
+    );
+  }
+
+  Future<void> _showDetails(BuildContext context, ScanRecord record) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _HistoryDetailSheet(record: record),
     );
   }
 
@@ -78,9 +89,10 @@ class HistoryPage extends ConsumerWidget {
 }
 
 class _HistoryTile extends StatelessWidget {
-  const _HistoryTile({required this.record});
+  const _HistoryTile({required this.record, required this.onTap});
 
   final ScanRecord record;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +102,7 @@ class _HistoryTile extends StatelessWidget {
         : record.recordSummaries.first;
 
     return ListTile(
+      onTap: onTap,
       leading: const CircleAvatar(child: Icon(Icons.nfc, size: 20)),
       title: Text(record.displayTitle),
       subtitle: Text(summary, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -105,4 +118,74 @@ class _HistoryTile extends StatelessWidget {
   static String _formatTime(DateTime time) =>
       '${time.hour.toString().padLeft(2, '0')}:'
       '${time.minute.toString().padLeft(2, '0')}';
+}
+
+class _HistoryDetailSheet extends StatelessWidget {
+  const _HistoryDetailSheet({required this.record});
+
+  final ScanRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final readable = record.wasWritable;
+    final writableText = switch (readable) {
+      true => 'Yazilabilir',
+      false => 'Salt-okunur',
+      null => 'Bilinmiyor',
+    };
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Text(record.displayTitle, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              '${record.scannedAt.day.toString().padLeft(2, '0')}.'
+              '${record.scannedAt.month.toString().padLeft(2, '0')}.'
+              '${record.scannedAt.year} '
+              '${record.scannedAt.hour.toString().padLeft(2, '0')}:'
+              '${record.scannedAt.minute.toString().padLeft(2, '0')}',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(),
+            InfoRow(label: 'UID', value: record.uidHex, monospace: true),
+            InfoRow(label: 'Yonga', value: record.chipDisplayName ?? record.chipFamily.name),
+            InfoRow(label: 'Yazma durumu', value: writableText),
+            if (record.ndefByteLength != null)
+              InfoRow(label: 'NDEF boyutu', value: '${record.ndefByteLength} byte'),
+            if (record.maxNdefSize != null)
+              InfoRow(label: 'Maksimum kapasite', value: '${record.maxNdefSize} byte'),
+            if (record.technologies.isNotEmpty) ...[
+              const SectionHeader('Teknolojiler'),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final tech in record.technologies)
+                    TagBadge(label: tech, icon: Icons.settings_input_antenna),
+                ],
+              ),
+            ],
+            if (record.recordSummaries.isNotEmpty) ...[
+              const SectionHeader('NDEF kayıtları'),
+              for (final summary in record.recordSummaries)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(summary),
+                ),
+            ],
+            if (record.rawJson != null && record.rawJson!.trim().isNotEmpty) ...[
+              const SectionHeader('Ham JSON'),
+              SelectableText(record.rawJson!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }

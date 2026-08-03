@@ -21,6 +21,9 @@
 
 ## Kayıt
 
+- [T4] 2026-08-03 · T4.19/T4.21/T4.22 Diğer sekmesinde biçimlendir + şifre koy/kaldır akışları aktif edildi ve testlendi · packages/services/tag_ops/lib/src/tag_operations_impl.dart
+- [T3] 2026-08-03 · Yazma kayıt seçicide Türkçe metin düzeltmeleri ve yeni URI tabanlı kayıt tipleri eklendi (YouTube/Play Store/Instagram/BTC/ETH) · packages/features/feature_write/lib/src/presentation/widgets/record_type_sheet.dart
+
 - [T3] 2026-08-03 · T3.35 kayit tipi secici tam ekran + kategori + arama ile tamamlandi · packages/features/feature_write/lib/src/presentation/widgets/record_type_sheet.dart
 
 - [T3] 2026-08-03 · T3.19 ilk surum vCard 3.0 MIME codec + write vCard sihirbazi eklendi, kayit secici tam sayfaya tasindi · packages/features/feature_write/lib/src/presentation/widgets/record_type_sheet.dart

@@ -57,50 +57,75 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.info.forceUpdate ? 'Zorunlu Guncelleme' : 'Guncelleme Hazir',
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Mevcut: ${widget.currentVersion}+${widget.currentBuildNumber}\n'
-            'Yeni: ${widget.info.version}+${widget.info.buildNumber}',
-          ),
-          const SizedBox(height: 12),
-          if (widget.info.releaseNotes.trim().isNotEmpty) ...[
-            const Text('Yenilikler:'),
-            const SizedBox(height: 4),
-            Text(widget.info.releaseNotes),
-            const SizedBox(height: 12),
-          ],
-          if (_isBusy) ...[
-            LinearProgressIndicator(value: _progress == 0 ? null : _progress),
-            const SizedBox(height: 8),
-            Text(_status ?? 'Indiriliyor...'),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.info.forceUpdate
+                      ? 'Zorunlu Güncelleme'
+                      : 'Güncelleme Hazır',
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Mevcut: ${widget.currentVersion}+${widget.currentBuildNumber}\n'
+                  'Yeni: ${widget.info.version}+${widget.info.buildNumber}',
+                ),
+                const SizedBox(height: 12),
+                if (widget.info.releaseNotes.trim().isNotEmpty) ...[
+                  const Text('Yenilikler:'),
+                  const SizedBox(height: 4),
+                  Text(widget.info.releaseNotes),
+                  const SizedBox(height: 12),
+                ],
+                if (_isBusy) ...[
+                  LinearProgressIndicator(
+                    value: _progress == 0 ? null : _progress,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_status ?? 'İndiriliyor...'),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (!widget.info.forceUpdate) ...[
+                      TextButton(
+                        onPressed: _isBusy
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        child: const Text('Daha Sonra'),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    FilledButton(
+                      onPressed: _isBusy ? null : _handleUpdate,
+                      child: Text(_isBusy ? 'Bekleyin...' : 'Şimdi Güncelle'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ],
-      ),
-      actions: [
-        if (!widget.info.forceUpdate)
-          TextButton(
-            onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
-            child: const Text('Daha Sonra'),
           ),
-        FilledButton(
-          onPressed: _isBusy ? null : _handleUpdate,
-          child: Text(_isBusy ? 'Bekleyin...' : 'Simdi Guncelle'),
         ),
-      ],
+      ),
     );
   }
 
@@ -109,7 +134,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       _isBusy = true;
       _progress = 0;
       _error = null;
-      _status = 'APK indiriliyor...';
+        _status = 'APK indiriliyor...';
     });
 
     try {
@@ -137,11 +162,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
     } on UpdateException catch (error) {
       _showError(error.message);
     } on DioException {
-      _showError('APK indirilemedi. Baglantiyi kontrol edip tekrar deneyin.');
+      _showError('APK indirilemedi. Bağlantıyı kontrol edip tekrar deneyin.');
     } on FileSystemException {
-      _showError('APK dosyasi kaydedilemedi. Depolama alanini kontrol edin.');
+      _showError('APK dosyası kaydedilemedi. Depolama alanını kontrol edin.');
     } catch (_) {
-      _showError('Guncelleme sirasinda beklenmeyen bir hata olustu.');
+      _showError('Güncelleme sırasında beklenmeyen bir hata oluştu.');
     }
   }
 
@@ -162,7 +187,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
     await widget.service.openUnknownAppsSettings();
 
     throw const UpdateException(
-      'Bu kaynaktan kurulum izni verip tekrar Guncelle butonuna basin.',
+      'Bu kaynaktan kurulum izni verip tekrar Güncelle butonuna basın.',
     );
   }
 
@@ -170,7 +195,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
     final result = await widget.service.openApkInstaller(apkFile);
     if (result.type != ResultType.done) {
       throw const UpdateException(
-        'Android yukleyicisi acilamadi. Tekrar deneyin.',
+        'Android yükleyicisi açılamadı. Tekrar deneyin.',
       );
     }
   }

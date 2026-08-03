@@ -56,7 +56,9 @@ void main() {
     });
 
     test('on ek kodu yukun ilk byte`i olur', () {
-      final record = NdefConverter.encode(const UriContent('https://ornek.com'));
+      final record = NdefConverter.encode(
+        const UriContent('https://ornek.com'),
+      );
       expect(record.payload.first, 0x04);
       expect(record.typeAsString, 'U');
     });

@@ -1,5 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:localization/localization.dart';
 import 'package:nfc_core/nfc_core.dart';
@@ -16,6 +17,20 @@ class ReadPage extends ConsumerStatefulWidget {
 }
 
 class _ReadPageState extends ConsumerState<ReadPage> {
+  static const MethodChannel _systemChannel = MethodChannel('nfc_toolkit/system');
+
+  @override
+  void initState() {
+    super.initState();
+    _systemChannel.setMethodCallHandler(_handleSystemCall);
+  }
+
+  @override
+  void dispose() {
+    _systemChannel.setMethodCallHandler(null);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -110,6 +125,14 @@ class _ReadPageState extends ConsumerState<ReadPage> {
       default:
         ref.read(readControllerProvider.notifier).scan();
     }
+  }
+
+  Future<void> _handleSystemCall(MethodCall call) async {
+    if (call.method != 'onNfcIntent' || !mounted) {
+      return;
+    }
+
+    await ref.read(readControllerProvider.notifier).scan();
   }
 }
 

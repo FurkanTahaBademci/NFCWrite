@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:localization/localization.dart';
 
@@ -19,11 +20,23 @@ class ShellPage extends StatefulWidget {
 }
 
 class _ShellPageState extends State<ShellPage> {
+  static const MethodChannel _systemChannel = MethodChannel('nfc_toolkit/system');
+
   late final UpdateService _updateService = UpdateService();
   bool _hasCheckedForUpdate = false;
+  bool? _lastReadPageVisible;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncReadPageVisibility(widget.navigationShell.currentIndex == 0);
+    });
+  }
 
   @override
   void dispose() {
+    _syncReadPageVisibility(false);
     _updateService.dispose();
     super.dispose();
   }
@@ -44,6 +57,14 @@ class _ShellPageState extends State<ShellPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isReadPageVisible = widget.navigationShell.currentIndex == 0;
+
+    if (_lastReadPageVisible != isReadPageVisible) {
+      _lastReadPageVisible = isReadPageVisible;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncReadPageVisibility(isReadPageVisible);
+      });
+    }
 
     return Scaffold(
       body: widget.navigationShell,
@@ -82,6 +103,16 @@ class _ShellPageState extends State<ShellPage> {
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
     );
+    _syncReadPageVisibility(index == 0);
+  }
+
+  Future<void> _syncReadPageVisibility(bool visible) async {
+    if (!mounted) return;
+    try {
+      await _systemChannel.invokeMethod<void>('setReadPageVisible', visible);
+    } on PlatformException {
+      // Native taraf bu cagrinin destegini kaybederse uygulama akisi bozulmasin.
+    }
   }
 
   Future<void> _checkForUpdate() async {

@@ -1,10 +1,10 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
-/// Araclarin gruplandigi kategori.
+/// Araçların gruplandığı kategori.
 enum ToolCategory { safe, content, configuration, irreversible }
 
-/// Bir aracin tanimi.
+/// Bir aracın tanımı.
 ///
 /// Yeni arac eklerken `.claude/templates/new_tool.md` sablonunu izle.
 @immutable
@@ -21,7 +21,7 @@ final class ToolDefinition {
     this.expertOnly = false,
   });
 
-  /// Kararli anahtar — rota parametresi ve kayit tutmada kullanilir.
+  /// Kararlı anahtar — rota parametresi ve kayıt tutmada kullanılır.
   final String id;
 
   final String title;
@@ -30,27 +30,27 @@ final class ToolDefinition {
   final ToolCategory category;
   final RiskLevel risk;
 
-  /// `.claude/tracks/T4-tools.md` icindeki gorev kodu.
+  /// `.claude/tracks/T4-tools.md` içindeki görev kodu.
   final String taskId;
 
-  /// Uygulandi mi? false ise arayuzde "yakinda" olarak gosterilir.
+  /// Uygulandı mı? false ise arayüzde "yakında" olarak gösterilir.
   final bool implemented;
 
-  /// Uzman modu kapaliyken gizlensin mi?
+  /// Uzman modu kapalıyken gizlensin mi?
   final bool expertOnly;
 }
 
-/// Uygulamadaki tum araclar.
+/// Uygulamadaki tüm araçlar.
 ///
-/// **Tek dogruluk kaynagi.** Yeni arac buraya eklenir; izgara ve rotalar
-/// otomatik olarak gunceller.
+/// **Tek doğruluk kaynağı.** Yeni araç buraya eklenir; ızgara ve rotalar
+/// otomatik olarak güncellenir.
 abstract final class ToolCatalog {
   static const List<ToolDefinition> all = [
-    // --- Guvenli ---
+    // --- Güvenli ---
     ToolDefinition(
       id: 'memory_dump',
-      title: 'Bellek dokumu',
-      description: 'Etiketin tum bellegini oku ve kaydet',
+      title: 'Bellek dökümü',
+      description: 'Etiketin tüm belleğini oku ve kaydet',
       icon: Icons.download_outlined,
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
@@ -59,8 +59,8 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'read_counter',
-      title: 'Sayac oku',
-      description: 'NFC okuma sayacini goster',
+      title: 'Sayaç oku',
+      description: 'NFC okuma sayacını göster',
       icon: Icons.numbers,
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
@@ -69,19 +69,19 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'verify_signature',
-      title: 'Orijinallik dogrula',
-      description: 'ECC imzasini ureticinin anahtariyla dogrula',
+      title: 'Orijinallik doğrula',
+      description: 'ECC imzasını üreticinin anahtarıyla doğrula',
       icon: Icons.verified_outlined,
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
       taskId: 'T4.12',
     ),
 
-    // --- Icerik ---
+    // --- İçerik ---
     ToolDefinition(
       id: 'copy_tag',
       title: 'Etiketi kopyala',
-      description: 'Bir etiketi okuyup digerine yaz',
+      description: 'Bir etiketi okuyup diğerine yaz',
       icon: Icons.copy_all_outlined,
       category: ToolCategory.content,
       risk: RiskLevel.caution,
@@ -90,7 +90,7 @@ abstract final class ToolCatalog {
     ToolDefinition(
       id: 'erase_tag',
       title: 'Etiketi temizle',
-      description: 'NDEF icerigini sil',
+      description: 'NDEF içeriğini sil',
       icon: Icons.cleaning_services_outlined,
       category: ToolCategory.content,
       risk: RiskLevel.caution,
@@ -99,8 +99,8 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'factory_reset',
-      title: 'Fabrika sifirlama',
-      description: 'Tum kullanici sayfalarini sifirla',
+      title: 'Fabrika sıfırlama',
+      description: 'Tüm kullanıcı sayfalarını sıfırla',
       icon: Icons.restart_alt,
       category: ToolCategory.content,
       risk: RiskLevel.warning,
@@ -108,46 +108,49 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'restore_dump',
-      title: 'Dokumu geri yukle',
-      description: 'Kaydedilmis bir dokumu etikete yaz',
+      title: 'Dökümü geri yükle',
+      description: 'Kaydedilmiş bir dökümü etikete yaz',
       icon: Icons.restore,
       category: ToolCategory.content,
       risk: RiskLevel.warning,
       taskId: 'T4.17',
     ),
 
-    // --- Yapilandirma ---
+    // --- Yapılandırma ---
     ToolDefinition(
       id: 'format_tag',
-      title: 'Bicimlendir',
-      description: 'Etiketi NDEF olarak bicimlendir',
+      title: 'Biçimlendir',
+      description: 'Etiketi NDEF olarak biçimlendir',
       icon: Icons.auto_fix_high_outlined,
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
       taskId: 'T4.19',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'set_password',
-      title: 'Sifre koy',
-      description: 'Etiketi sifre ile koru',
+      title: 'Şifre koy',
+      description: 'Etiketi şifre ile koru',
       icon: Icons.password,
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
       taskId: 'T4.21',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'remove_password',
-      title: 'Sifre kaldir',
-      description: 'Mevcut sifre korumasini kaldir',
+      title: 'Şifre kaldır',
+      description: 'Mevcut şifre korumasını kaldır',
       icon: Icons.lock_open_outlined,
       category: ToolCategory.configuration,
       risk: RiskLevel.caution,
       taskId: 'T4.22',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'configure_mirror',
-      title: 'UID yansitma',
-      description: 'UID / sayaci NDEF icine yansit',
+      title: 'UID yansıtma',
+      description: 'UID / sayacı NDEF içine yansıt',
       icon: Icons.flip_to_front,
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
@@ -155,19 +158,19 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'configure_counter',
-      title: 'Sayac ayarla',
-      description: 'NFC okuma sayacini ac / kapat',
+      title: 'Sayaç ayarla',
+      description: 'NFC okuma sayacını aç / kapat',
       icon: Icons.speed,
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
       taskId: 'T4.26',
     ),
 
-    // --- Geri alinamaz ---
+    // --- Geri alınamaz ---
     ToolDefinition(
       id: 'make_read_only',
       title: 'Salt-okunur yap',
-      description: 'Etiketi kalici olarak yazmaya kapat',
+      description: 'Etiketi kalıcı olarak yazmaya kapat',
       icon: Icons.lock_outline,
       category: ToolCategory.irreversible,
       risk: RiskLevel.danger,
@@ -178,7 +181,7 @@ abstract final class ToolCatalog {
     ToolDefinition(
       id: 'lock_pages',
       title: 'Sayfa kilitle',
-      description: 'Secili sayfalari kalici olarak kilitle',
+      description: 'Seçili sayfaları kalıcı olarak kilitle',
       icon: Icons.grid_off,
       category: ToolCategory.irreversible,
       risk: RiskLevel.danger,
@@ -187,8 +190,8 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'lock_configuration',
-      title: 'Yapilandirmayi dondur',
-      description: 'CFGLCK — ayarlar bir daha degistirilemez',
+      title: 'Yapılandırmayı dondur',
+      description: 'CFGLCK — ayarlar bir daha değiştirilemez',
       icon: Icons.ac_unit,
       category: ToolCategory.irreversible,
       risk: RiskLevel.danger,
@@ -200,7 +203,7 @@ abstract final class ToolCatalog {
     ToolDefinition(
       id: 'raw_console',
       title: 'Ham komut konsolu',
-      description: 'Etikete dogrudan hex komut gonder',
+      description: 'Etikete doğrudan hex komut gönder',
       icon: Icons.terminal,
       category: ToolCategory.configuration,
       risk: RiskLevel.warning,
@@ -210,8 +213,8 @@ abstract final class ToolCatalog {
     ),
     ToolDefinition(
       id: 'mifare_keys',
-      title: 'MIFARE anahtar taramasi',
-      description: 'Bilinen anahtarlarla sektorleri dene',
+      title: 'MIFARE anahtar taraması',
+      description: 'Bilinen anahtarlarla sektörleri dene',
       icon: Icons.vpn_key_outlined,
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
@@ -220,7 +223,7 @@ abstract final class ToolCatalog {
     ),
   ];
 
-  /// Kategoriye gore araclari dondurur.
+  /// Kategoriye göre araçları döndürür.
   static List<ToolDefinition> byCategory(
     ToolCategory category, {
     required bool expertMode,
@@ -230,7 +233,7 @@ abstract final class ToolCatalog {
       )
       .toList(growable: false);
 
-  /// Id ile arac bulur.
+  /// Id ile araç bulur.
   static ToolDefinition? byId(String id) {
     for (final tool in all) {
       if (tool.id == id) return tool;

@@ -56,3 +56,4 @@ app.*.map.json
 # Local release artifacts (GitHub release asset olarak yuklenir)
 /releases/*.apk
 
+*.apk
