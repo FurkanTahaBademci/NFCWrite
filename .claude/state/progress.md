@@ -21,6 +21,7 @@
 
 ## Kayıt
 
+- [T1] 2026-08-03 · T1.1 sqflite sema v1 + migration altyapisi tamamlandi · packages/services/storage/lib/src/database/storage_database.dart
 - [T1] 2026-08-03 · OTA guncelleme altyapisi eklendi · apps/nfc_toolkit/lib/src/update/update_service.dart
 - [T1] 2026-08-03 · Aşama 1 tamamlandı · monorepo, nfc_core sözleşmeleri,
   shared_utils, nfc_transport adaptörü, Android yapılandırması,
