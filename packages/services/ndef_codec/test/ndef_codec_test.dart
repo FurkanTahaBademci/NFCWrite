@@ -62,6 +62,48 @@ void main() {
     });
   });
 
+  group('vCard kaydi', () {
+    test('cift yonlu', () {
+      final content = VCardContent(
+        formattedName: 'Furkan Bademci',
+        givenName: 'Furkan',
+        familyName: 'Bademci',
+        phones: const <String>['+905551112233'],
+        emails: const <String>['furkan@ornek.com'],
+        organization: 'NFC Toolkit',
+        title: 'Developer',
+        address: 'Istanbul, Turkiye',
+        url: 'https://ornek.com',
+        note: 'Test notu',
+      );
+
+      final decoded = NdefConverter.decode(NdefConverter.encode(content));
+      expect(decoded, content);
+    });
+
+    test('katlanmis satirlar cozulur', () {
+      const folded =
+          'BEGIN:VCARD\r\n'
+          'VERSION:3.0\r\n'
+          'N:Bademci;Furkan;;;\r\n'
+          'FN:Furkan Bademci\r\n'
+          'NOTE:Bu satir oldukca uzun oldugu icin katlanmistir ve\r\n'
+          ' devam ediyor\r\n'
+          'END:VCARD';
+
+      final record = NdefRecordEntity(
+        typeNameFormat: NdefTypeNameFormat.media,
+        type: Uint8List.fromList('text/vcard'.codeUnits),
+        identifier: Uint8List(0),
+        payload: Uint8List.fromList(folded.codeUnits),
+      );
+
+      final decoded = NdefConverter.decode(record);
+      expect(decoded, isA<VCardContent>());
+      expect((decoded as VCardContent).note, contains('devam ediyor'));
+    });
+  });
+
   group('Ikili kodlayici', () {
     test('mesaj cift yonlu', () {
       final message = NdefConverter.encodeAll([

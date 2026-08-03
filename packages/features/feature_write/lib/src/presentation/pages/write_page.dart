@@ -113,26 +113,13 @@ class _WritePageState extends ConsumerState<WritePage> {
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: Column(
-                      children: [
-                        SwitchListTile.adaptive(
-                          value: state.lockAfterWrite,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.writeLockAfterWrite),
-                          secondary: const Icon(Icons.lock_outline),
-                          onChanged: (value) =>
-                              controller.setLockAfterWrite(value: value),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: controller.write,
-                            icon: const Icon(Icons.nfc),
-                            label: Text(l10n.writeAction),
-                          ),
-                        ),
-                      ],
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: controller.write,
+                        icon: const Icon(Icons.nfc),
+                        label: Text(l10n.writeAction),
+                      ),
                     ),
                   ),
                 ),
@@ -204,6 +191,7 @@ class _WritePageState extends ConsumerState<WritePage> {
   static String _labelFor(NdefContent content) => switch (content) {
     TextContent() => 'Metin',
     UriContent() => 'Baglanti',
+    VCardContent() => 'vCard',
     MimeContent(:final mimeType) => mimeType,
     ExternalContent() => 'Harici tip',
     EmptyContent() => 'Bos kayit',

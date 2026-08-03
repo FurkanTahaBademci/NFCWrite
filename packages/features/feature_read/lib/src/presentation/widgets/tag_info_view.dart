@@ -280,6 +280,7 @@ class _RecordCard extends StatelessWidget {
       'geo' => Icons.place_outlined,
       _ => Icons.link,
     },
+    VCardContent() => Icons.badge_outlined,
     MimeContent() => Icons.description_outlined,
     ExternalContent() => Icons.extension_outlined,
     EmptyContent() => Icons.crop_free,
@@ -289,6 +290,7 @@ class _RecordCard extends StatelessWidget {
   static String _titleFor(NdefContent content) => switch (content) {
     TextContent() => 'Metin',
     UriContent() => 'Baglanti',
+    VCardContent() => 'vCard',
     MimeContent(:final mimeType) => mimeType,
     ExternalContent() => 'Harici tip',
     EmptyContent() => 'Bos',

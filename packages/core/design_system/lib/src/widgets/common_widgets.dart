@@ -245,44 +245,56 @@ class ToolCard extends StatelessWidget {
       child: Card(
         child: InkWell(
           onTap: enabled ? onTap : null,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxHeight < 120;
+              final padding = compact ? AppSpacing.md : AppSpacing.lg;
+              final showDescription = constraints.maxHeight >= 110;
+
+              return Padding(
+                padding: EdgeInsets.all(padding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: riskColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                      ),
-                      child: Icon(icon, size: 20, color: riskColor),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: riskColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: Icon(icon, size: 20, color: riskColor),
+                        ),
+                        const Spacer(),
+                        if (risk == RiskLevel.danger)
+                          Icon(risk.icon, size: 16, color: riskColor),
+                      ],
                     ),
-                    const Spacer(),
-                    if (risk == RiskLevel.danger)
-                      Icon(risk.icon, size: 16, color: riskColor),
+                    SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: compact ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (showDescription) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        maxLines: compact ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  description,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),

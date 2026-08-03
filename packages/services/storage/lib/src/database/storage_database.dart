@@ -13,7 +13,9 @@ final class StorageDatabase {
   static const String tableWriteTemplates = 'write_templates';
   static const String tableTagAliases = 'tag_aliases';
 
-  static final List<_Migration> _migrations = [const _CreateSchemaV1Migration()];
+  static final List<_Migration> _migrations = [
+    const _CreateSchemaV1Migration(),
+  ];
 
   /// Uygulamanin kalici veritabanini acar.
   ///

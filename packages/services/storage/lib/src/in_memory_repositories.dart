@@ -3,10 +3,10 @@
 /// Bunlar uygulamanin **calisir durumda** kalmasi icin konuldu; veri
 /// uygulama kapaninca kaybolur. Kalici sqflite uygulamalari T1'in
 /// 2. asamasinda yazilacak:
-///   * T1.1 — sqflite sema
-///   * T1.2 — HistoryRepositoryImpl
-///   * T1.3 — DumpRepositoryImpl
-///   * T1.4 — TemplateRepositoryImpl
+///   * T1.1 — sqflite sema (tamamlandi)
+///   * T1.2 — HistoryRepositoryImpl (tamamlandi)
+///   * T1.3 — DumpRepositoryImpl (tamamlandi)
+///   * T1.4 — TemplateRepositoryImpl (tamamlandi)
 ///
 /// Bkz. `.claude/tracks/T1-core.md`
 ///
@@ -224,7 +224,10 @@ final class InMemoryTemplateRepository implements TemplateRepository {
   Future<Result<void>> update(WriteTemplate template) async {
     final index = _templates.indexWhere((t) => t.id == template.id);
     if (index < 0) return const Err(StorageError('Sablon bulunamadi'));
-    _templates[index] = template.copyWith(updatedAt: DateTime.now());
+    _templates[index] = template.copyWith(
+      updatedAt: DateTime.now(),
+      useCount: _templates[index].useCount,
+    );
     _changes.add(null);
     return okVoid;
   }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:nfc_core/nfc_core.dart';
 
 import 'ndef_content.dart';
@@ -39,7 +40,12 @@ abstract final class NdefConverter {
         }
 
       case NdefTypeNameFormat.media:
-        return MimeContent(mimeType: record.typeAsString, data: record.payload);
+        final mimeType = record.typeAsString;
+        if (_isVCardMime(mimeType)) {
+          final decoded = _decodeVCard(record.payload);
+          if (decoded != null) return decoded;
+        }
+        return MimeContent(mimeType: mimeType, data: record.payload);
 
       case NdefTypeNameFormat.absoluteUri:
         // TNF 3'te URI tip alanindadir, yukte degil.
@@ -73,6 +79,7 @@ abstract final class NdefConverter {
     EmptyContent() => NdefRecordEntity.empty(),
     TextContent() => _encodeText(content),
     UriContent() => _encodeUri(content),
+    VCardContent() => _encodeVCard(content),
     MimeContent() => NdefRecordEntity(
       typeNameFormat: NdefTypeNameFormat.media,
       type: Uint8List.fromList(utf8.encode(content.mimeType)),
@@ -186,6 +193,238 @@ abstract final class NdefConverter {
       payload: payload,
     );
   }
+
+  // -------------------------------------------------------------------
+  // vCard (MIME text/vcard)
+  // -------------------------------------------------------------------
+
+  static bool _isVCardMime(String mimeType) {
+    final normalized = mimeType.trim().toLowerCase();
+    return normalized == 'text/vcard' || normalized == 'text/x-vcard';
+  }
+
+  static VCardContent? _decodeVCard(Uint8List payload) {
+    final raw = _decodeUtf8OrLatin1(payload);
+    if (raw == null) return null;
+
+    final unfolded = _unfoldVCardLines(raw);
+    final lineMap = <String, List<String>>{};
+
+    var hasBegin = false;
+    var hasEnd = false;
+
+    for (final line in unfolded) {
+      if (line.isEmpty) continue;
+      final upper = line.toUpperCase();
+      if (upper == 'BEGIN:VCARD') {
+        hasBegin = true;
+        continue;
+      }
+      if (upper == 'END:VCARD') {
+        hasEnd = true;
+        continue;
+      }
+
+      final separator = line.indexOf(':');
+      if (separator <= 0) continue;
+
+      final left = line.substring(0, separator);
+      final value = line.substring(separator + 1);
+      final key = left.split(';').first.toUpperCase();
+      lineMap.putIfAbsent(key, () => <String>[]).add(value);
+    }
+
+    if (!hasBegin || !hasEnd) return null;
+
+    final formattedName = _firstValue(lineMap, 'FN');
+    if (formattedName == null || formattedName.trim().isEmpty) return null;
+
+    final nRaw = _firstValue(lineMap, 'N');
+    final nParts = nRaw == null
+        ? const <String>[]
+        : nRaw.split(';').map(_unescapeVCard).toList(growable: false);
+
+    return VCardContent(
+      formattedName: _unescapeVCard(formattedName),
+      familyName: _nullIfEmpty(nParts.elementAtOrNull(0)),
+      givenName: _nullIfEmpty(nParts.elementAtOrNull(1)),
+      organization: _nullIfEmpty(_mapFirst(lineMap, 'ORG')),
+      title: _nullIfEmpty(_mapFirst(lineMap, 'TITLE')),
+      phones: _mapMany(lineMap, 'TEL'),
+      emails: _mapMany(lineMap, 'EMAIL'),
+      address: _nullIfEmpty(_decodeAddress(_firstValue(lineMap, 'ADR'))),
+      url: _nullIfEmpty(_mapFirst(lineMap, 'URL')),
+      note: _nullIfEmpty(_mapFirst(lineMap, 'NOTE')),
+    );
+  }
+
+  static NdefRecordEntity _encodeVCard(VCardContent content) {
+    final lines = <String>[
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'N:${_escapeVCard(content.familyName ?? '')};${_escapeVCard(content.givenName ?? '')};;;',
+      'FN:${_escapeVCard(content.formattedName)}',
+    ];
+
+    if (_hasValue(content.organization)) {
+      lines.add('ORG:${_escapeVCard(content.organization!)}');
+    }
+    if (_hasValue(content.title)) {
+      lines.add('TITLE:${_escapeVCard(content.title!)}');
+    }
+    for (final phone in content.phones.where(_hasValue)) {
+      lines.add('TEL;TYPE=CELL:${_escapeVCard(phone)}');
+    }
+    for (final email in content.emails.where(_hasValue)) {
+      lines.add('EMAIL;TYPE=INTERNET:${_escapeVCard(email)}');
+    }
+    if (_hasValue(content.address)) {
+      lines.add('ADR;TYPE=WORK:;;${_escapeVCard(content.address!)};;;;');
+    }
+    if (_hasValue(content.url)) {
+      lines.add('URL:${_escapeVCard(content.url!)}');
+    }
+    if (_hasValue(content.note)) {
+      lines.add('NOTE:${_escapeVCard(content.note!)}');
+    }
+
+    lines.add('END:VCARD');
+
+    final vcard = lines
+        .expand(_foldVCardLine)
+        .join('\r\n');
+
+    return NdefRecordEntity(
+      typeNameFormat: NdefTypeNameFormat.media,
+      type: Uint8List.fromList(ascii.encode('text/vcard')),
+      identifier: Uint8List(0),
+      payload: Uint8List.fromList(utf8.encode(vcard)),
+    );
+  }
+
+  static String? _decodeUtf8OrLatin1(Uint8List bytes) {
+    try {
+      return utf8.decode(bytes);
+    } on FormatException {
+      try {
+        return latin1.decode(bytes);
+      } on FormatException {
+        return null;
+      }
+    }
+  }
+
+  static List<String> _unfoldVCardLines(String source) {
+    final normalized = source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final rawLines = normalized.split('\n');
+    final result = <String>[];
+
+    for (final line in rawLines) {
+      if (line.startsWith(' ') || line.startsWith('\t')) {
+        if (result.isNotEmpty) {
+          result[result.length - 1] = '${result.last}${line.substring(1)}';
+        }
+      } else {
+        result.add(line);
+      }
+    }
+
+    return result;
+  }
+
+  static Iterable<String> _foldVCardLine(String line) sync* {
+    final units = utf8.encode(line);
+    if (units.length <= 75) {
+      yield line;
+      return;
+    }
+
+    var start = 0;
+    while (start < line.length) {
+      var end = start;
+      var byteLen = 0;
+      while (end < line.length) {
+        final char = line.substring(end, end + 1);
+        final charBytes = utf8.encode(char).length;
+        if (byteLen + charBytes > 75) break;
+        byteLen += charBytes;
+        end += 1;
+      }
+
+      final chunk = line.substring(start, end);
+      if (start == 0) {
+        yield chunk;
+      } else {
+        yield ' $chunk';
+      }
+      start = end;
+    }
+  }
+
+  static String _escapeVCard(String value) =>
+      value
+          .replaceAll('\\', r'\\')
+          .replaceAll(';', r'\;')
+          .replaceAll(',', r'\,')
+          .replaceAll('\r\n', r'\n')
+          .replaceAll('\n', r'\n')
+          .replaceAll('\r', r'\n');
+
+  static String _unescapeVCard(String value) {
+    var result = value.replaceAllMapped(RegExp(r'\\[nN]'), (_) => '\n');
+    result = result
+        .replaceAll(r'\,', ',')
+        .replaceAll(r'\;', ';')
+        .replaceAll(r'\\', r'\');
+    return result;
+  }
+
+  static String? _firstValue(Map<String, List<String>> map, String key) {
+    final values = map[key];
+    if (values == null || values.isEmpty) return null;
+    return values.first;
+  }
+
+  static String? _mapFirst(Map<String, List<String>> map, String key) {
+    final value = _firstValue(map, key);
+    return value == null ? null : _unescapeVCard(value);
+  }
+
+  static List<String> _mapMany(Map<String, List<String>> map, String key) {
+    final values = map[key];
+    if (values == null || values.isEmpty) return const <String>[];
+    return values
+        .map(_unescapeVCard)
+        .map((value) => value.trim())
+        .where(_hasValue)
+        .toList(growable: false);
+  }
+
+  static String? _decodeAddress(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+
+    final parts = raw.split(';').map(_unescapeVCard).toList(growable: false);
+    if (parts.length < 3) return _unescapeVCard(raw);
+
+    final selected = <String>[];
+    for (final index in <int>[2, 3, 4, 5, 6]) {
+      if (index >= parts.length) break;
+      final value = parts[index].trim();
+      if (value.isNotEmpty) selected.add(value);
+    }
+
+    if (selected.isNotEmpty) return selected.join(', ');
+    return _unescapeVCard(raw);
+  }
+
+  static String? _nullIfEmpty(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static bool _hasValue(String? value) =>
+      value != null && value.trim().isNotEmpty;
 
   // -------------------------------------------------------------------
   // UTF-16 yardimcilari

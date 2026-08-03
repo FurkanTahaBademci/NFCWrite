@@ -74,6 +74,71 @@ final class UriContent extends NdefContent {
   String toString() => 'UriContent($uri)';
 }
 
+/// vCard kaydi (MIME `text/vcard`).
+final class VCardContent extends NdefContent {
+  VCardContent({
+    required this.formattedName,
+    this.familyName,
+    this.givenName,
+    this.organization,
+    this.title,
+    List<String> phones = const <String>[],
+    List<String> emails = const <String>[],
+    this.address,
+    this.url,
+    this.note,
+  }) : phones = List.unmodifiable(phones),
+       emails = List.unmodifiable(emails);
+
+  final String formattedName;
+  final String? familyName;
+  final String? givenName;
+  final String? organization;
+  final String? title;
+  final List<String> phones;
+  final List<String> emails;
+  final String? address;
+  final String? url;
+  final String? note;
+
+  @override
+  String get summary {
+    final contact = phones.firstOrNull ?? emails.firstOrNull;
+    return contact == null ? formattedName : '$formattedName · $contact';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is VCardContent &&
+      other.formattedName == formattedName &&
+      other.familyName == familyName &&
+      other.givenName == givenName &&
+      other.organization == organization &&
+      other.title == title &&
+      const ListEquality<String>().equals(other.phones, phones) &&
+      const ListEquality<String>().equals(other.emails, emails) &&
+      other.address == address &&
+      other.url == url &&
+      other.note == note;
+
+  @override
+  int get hashCode => Object.hash(
+    formattedName,
+    familyName,
+    givenName,
+    organization,
+    title,
+    const ListEquality<String>().hash(phones),
+    const ListEquality<String>().hash(emails),
+    address,
+    url,
+    note,
+  );
+
+  @override
+  String toString() => 'VCardContent($formattedName)';
+}
+
 /// MIME tipli veri kaydi (TNF 2).
 final class MimeContent extends NdefContent {
   MimeContent({required this.mimeType, required Uint8List data})

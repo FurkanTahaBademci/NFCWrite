@@ -38,12 +38,12 @@ Bir şeyi geciktirirsen herkes bekler. Öncelik sırasına harfiyen uy.
 
 - [x] T1.1 `storage`: sqflite şema v1 — `scan_history`, `tag_dumps`,
       `write_templates`, `tag_aliases` tabloları + migration altyapısı
-- [ ] T1.2 `HistoryRepositoryImpl` — ekle/listele/ara/sil/takma ad
-- [ ] T1.3 `DumpRepositoryImpl` — dump kaydet/oku/sil, dosya olarak dışa aktar
-- [ ] T1.4 `TemplateRepositoryImpl` — yazma şablonları
-- [ ] T1.5 `SettingsRepositoryImpl` — `shared_preferences` üzerinden
-- [ ] T1.6 `storage` birim testleri (`sqflite_common_ffi` ile)
-- [ ] T1.7 Composition root'ta repository override'larını bağla
+- [x] T1.2 `HistoryRepositoryImpl` — ekle/listele/ara/sil/takma ad
+- [x] T1.3 `DumpRepositoryImpl` — dump kaydet/oku/sil, dosya olarak dışa aktar
+- [x] T1.4 `TemplateRepositoryImpl` — yazma şablonları
+- [x] T1.5 `SettingsRepositoryImpl` — `shared_preferences` üzerinden
+- [x] T1.6 `storage` birim testleri (`sqflite_common_ffi` ile)
+- [x] T1.7 Composition root'ta repository override'larını bağla
 
 ## Aşama 3 — Oturum sağlamlaştırma
 

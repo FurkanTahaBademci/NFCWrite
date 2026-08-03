@@ -25,6 +25,20 @@ class ToolDetailPage extends ConsumerStatefulWidget {
 class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
   String? _resultMessage;
   bool _busy = false;
+  late final TextEditingController _rawCommandController;
+  TransceiveChannel _rawChannel = TransceiveChannel.nfcA;
+
+  @override
+  void initState() {
+    super.initState();
+    _rawCommandController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _rawCommandController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +75,20 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
             icon: tool.risk.icon,
             risk: tool.risk,
           ),
+
+          if (tool.id == 'raw_console') ...[
+            const SizedBox(height: AppSpacing.xl),
+            _RawCommandForm(
+              controller: _rawCommandController,
+              selectedChannel: _rawChannel,
+              onChannelChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _rawChannel = value;
+                });
+              },
+            ),
+          ],
 
           if (_resultMessage != null) ...[
             const SizedBox(height: AppSpacing.xl),
@@ -104,6 +132,16 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     final l10n = AppLocalizations.of(context);
     final session = ref.read(nfcSessionServiceProvider);
     final operations = ref.read(tagOperationsProvider);
+
+    if (tool.id == 'raw_console') {
+      final commandHex = _rawCommandController.text.trim();
+      if (commandHex.isEmpty || !isValidHex(commandHex)) {
+        setState(() {
+          _resultMessage = 'Gecerli bir hex komut girin (or: 30 04).';
+        });
+        return;
+      }
+    }
 
     setState(() {
       _busy = true;
@@ -200,8 +238,84 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
       case 'make_read_only':
         final result = await operations.makeReadOnly(tag, ack: ack);
         return result.map((_) => 'Etiket kalici olarak salt-okunur yapildi');
+      case 'raw_console':
+        final command = hexToBytes(_rawCommandController.text.trim());
+        final result = await operations.sendRawCommand(
+          tag,
+          command: command,
+          channel: _rawChannel,
+        );
+        return result.map((bytes) {
+          final hex = bytesToHex(bytes, separator: ' ');
+          final ascii = bytesToAscii(bytes);
+          return 'Cevap (${bytes.length} byte)\nHEX: $hex\nASCII: $ascii';
+        });
       default:
         return Err(NotImplementedYet(tool.taskId));
     }
   }
+}
+
+class _RawCommandForm extends StatelessWidget {
+  const _RawCommandForm({
+    required this.controller,
+    required this.selectedChannel,
+    required this.onChannelChanged,
+  });
+
+  final TextEditingController controller;
+  final TransceiveChannel selectedChannel;
+  final ValueChanged<TransceiveChannel?> onChannelChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Komut',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'HEX APDU / komut',
+              hintText: '30 04',
+            ),
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<TransceiveChannel>(
+            initialValue: selectedChannel,
+            items: TransceiveChannel.values
+                .map(
+                  (channel) => DropdownMenuItem(
+                    value: channel,
+                    child: Text(_channelLabel(channel)),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: onChannelChanged,
+            decoration: const InputDecoration(labelText: 'Kanal'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Bosluk, :, -, 0x yazimi kabul edilir.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  static String _channelLabel(TransceiveChannel channel) => switch (channel) {
+    TransceiveChannel.nfcA => 'NfcA',
+    TransceiveChannel.nfcV => 'NfcV',
+    TransceiveChannel.mifareUltralight => 'Mifare Ultralight',
+    TransceiveChannel.mifareClassic => 'Mifare Classic',
+    TransceiveChannel.isoDep => 'IsoDep',
+  };
 }

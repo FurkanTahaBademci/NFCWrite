@@ -36,15 +36,18 @@ final class AppDependencies {
 
   /// Tum bagimliliklari kurar. Uygulama acilisinda bir kez cagrilir.
   static Future<AppDependencies> bootstrap() async {
+    final database = await StorageDatabase.open();
     final settingsRepository = await SettingsRepositoryImpl.open();
+    final historyRepository = HistoryRepositoryImpl(database);
+    final dumpRepository = DumpRepositoryImpl(database);
+    final templateRepository = TemplateRepositoryImpl(database);
 
     return AppDependencies._(
       session: AndroidNfcSessionService(),
       operations: const TagOperationsImpl(),
-      // GECICI: kalici sqflite uygulamalari T1.1-T1.4 ile gelecek.
-      historyRepository: InMemoryHistoryRepository(),
-      dumpRepository: InMemoryDumpRepository(),
-      templateRepository: InMemoryTemplateRepository(),
+      historyRepository: historyRepository,
+      dumpRepository: dumpRepository,
+      templateRepository: templateRepository,
       settingsRepository: settingsRepository,
     );
   }

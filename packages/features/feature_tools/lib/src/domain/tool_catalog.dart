@@ -55,6 +55,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
       taskId: 'T4.9',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'read_counter',
@@ -64,6 +65,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
       taskId: 'T4.11',
+      implemented: true,
     ),
     ToolDefinition(
       id: 'verify_signature',

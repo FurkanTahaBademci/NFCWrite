@@ -46,7 +46,7 @@ packages/services/ndef_codec/**
 ## Aşama 3 — Yapılandırılmış kayıt tipleri
 
 - [ ] T3.18 **WiFi (WSC)** — `docs/03 §1.4`, TLV kodlayıcı, tüm auth tipleri
-- [ ] T3.19 **vCard 3.0** — ad, telefon(lar), e-posta(lar), şirket, unvan,
+- [~] T3.19 **vCard 3.0** — ad, telefon(lar), e-posta(lar), şirket, unvan,
       adres, web, not; satır katlama (folding) doğru olmalı
 - [ ] T3.20 **Bluetooth OOB** — klasik eşleştirme (MAC + isim + sınıf)
 - [ ] T3.21 **Bluetooth LE OOB**
@@ -67,7 +67,7 @@ packages/services/ndef_codec/**
 - [ ] T3.33 `WritePage` — kayıt kartları, sürükle-bırak sıralama,
       kaydırarak silme
 - [ ] T3.34 Kapasite çubuğu — `X / Y byte`, taşınca kırmızı + yazma engeli
-- [ ] T3.35 Kayıt tipi seçici — kategorili, arama kutulu tam ekran
+- [x] T3.35 Kayıt tipi seçici — kategorili, arama kutulu tam ekran
 - [ ] T3.36 Her tip için sihirbaz ekranı (form + canlı önizleme + doğrulama)
 - [ ] T3.37 Yazma oturumu — `NfcScanSheet` ile, ilerleme + sonuç
 - [ ] T3.38 Yazma sonrası doğrulama — geri oku, karşılaştır, farklıysa uyar
