@@ -12,7 +12,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'version_info.dart';
 
-const String _defaultVersionInfoUrl = '';
+const String _defaultVersionInfoUrl =
+  'https://raw.githubusercontent.com/FurkanTahaBademci/NFCWrite/main/releases/version.json';
 const _platform = MethodChannel('nfc_toolkit/system');
 
 final class UpdateService {
