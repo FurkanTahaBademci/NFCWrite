@@ -11,3 +11,4 @@ export 'src/ndef_binary_codec.dart';
 export 'src/ndef_content.dart';
 export 'src/ndef_converter.dart';
 export 'src/uri_prefixes.dart';
+export 'src/vcard_share_link.dart';

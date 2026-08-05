@@ -10,6 +10,9 @@ final List<RouteBase> writeRoutes = <RouteBase>[
   GoRoute(
     path: writeRoutePath,
     name: 'write',
-    builder: (context, state) => const WritePage(),
+    builder: (context, state) {
+      final fromHistory = state.uri.queryParameters['fromHistory'];
+      return WritePage(fromHistoryId: int.tryParse(fromHistory ?? ''));
+    },
   ),
 ];

@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ndef_codec/ndef_codec.dart';
 import 'package:nfc_core/nfc_core.dart';
+import 'package:shared_utils/shared_utils.dart';
 
 import 'providers.dart';
 
@@ -166,6 +169,53 @@ final class WriteController extends Notifier<WriteState> {
   /// Sonuc gosterildikten sonra duzenleme moduna doner.
   void acknowledge() =>
       state = state.copyWith(phase: WritePhase.editing, clearFailure: true);
+
+  /// Gecmisteki bir taramanin NDEF icerigini duzenleme listesine yukler.
+  ///
+  /// `ScanRecord.rawJson`, okuma sirasinda ham NDEF kayitlarinin hex
+  /// serilestirilmis hali olarak kaydedilir (bkz. `feature_read`). Burada
+  /// geri cozumlenip [NdefContent] listesine cevrilir. Kayit bulunamazsa
+  /// ya da yuklenebilir veri yoksa sessizce hicbir sey yapmaz.
+  Future<void> loadFromHistory(int historyId) async {
+    final repository = ref.read(historyRepositoryProvider);
+    final result = await repository.findById(historyId);
+    if (result case Err()) return;
+    final record = (result as Ok<ScanRecord?>).value;
+    if (record == null) return;
+
+    final message = _decodeNdefMessage(record.rawJson);
+    if (message == null || message.records.isEmpty) return;
+
+    state = state.copyWith(records: NdefConverter.decodeAll(message));
+  }
+
+  NdefMessageEntity? _decodeNdefMessage(String? rawJson) {
+    if (rawJson == null || rawJson.isEmpty) return null;
+    try {
+      final map = jsonDecode(rawJson);
+      if (map is! Map<String, Object?> || map['records'] is! List) {
+        return null;
+      }
+      final records = <NdefRecordEntity>[];
+      for (final item in map['records']! as List) {
+        if (item is! Map) continue;
+        final entry = item.cast<String, Object?>();
+        records.add(
+          NdefRecordEntity(
+            typeNameFormat: NdefTypeNameFormat.fromValue(
+              entry['tnf'] as int? ?? 0,
+            ),
+            type: hexToBytes(entry['type'] as String? ?? ''),
+            identifier: hexToBytes(entry['id'] as String? ?? ''),
+            payload: hexToBytes(entry['payload'] as String? ?? ''),
+          ),
+        );
+      }
+      return records.isEmpty ? null : NdefMessageEntity(records);
+    } on Object {
+      return null;
+    }
+  }
 }
 
 /// Yazma ekrani denetleyicisi.

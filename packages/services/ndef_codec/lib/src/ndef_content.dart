@@ -86,7 +86,7 @@ final class VCardContent extends NdefContent {
     List<String> emails = const <String>[],
     this.address,
     this.url,
-     List<String> socialUrls = const <String>[],
+    List<String> socialUrls = const <String>[],
     this.note,
   }) : phones = List.unmodifiable(phones),
        emails = List.unmodifiable(emails),

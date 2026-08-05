@@ -25,3 +25,9 @@ final Provider<TemplateRepository> templateRepositoryProvider =
     Provider<TemplateRepository>(
       (ref) => throw UnimplementedError(_overrideHint),
     );
+
+/// Tarama gecmisi deposu — "gecmisten yukle" akisi icin (bkz. T2.31).
+final Provider<HistoryRepository> historyRepositoryProvider =
+    Provider<HistoryRepository>(
+      (ref) => throw UnimplementedError(_overrideHint),
+    );

@@ -110,6 +110,44 @@ void main() {
     });
   });
 
+  group('vCard paylasim baglantisi (iPhone uyumlu)', () {
+    final content = VCardContent(
+      formattedName: 'Furkan Bademci',
+      givenName: 'Furkan',
+      familyName: 'Bademci',
+      phones: const <String>['+905551112233'],
+      emails: const <String>['furkan@ornek.com'],
+      organization: 'NFC Toolkit',
+      url: 'https://ornek.com',
+      note: 'Turkce karakter testi: ğüşiöç',
+    );
+
+    test('cift yonlu: build -> tryParse', () {
+      final url = VCardShareLink.build(content);
+      expect(url, startsWith(VCardShareLink.defaultBaseUrl));
+      expect(VCardShareLink.tryParse(url), content);
+    });
+
+    test('fragment base64url alfabesi kullanir, padding icermez', () {
+      final url = VCardShareLink.build(content);
+      final fragment = url.substring(url.indexOf('#') + 1);
+      expect(RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(fragment), isTrue);
+    });
+
+    test('fragment sunucuya giden yol icermez', () {
+      // Fragment'tan onceki kisim sabit cozucu sayfadir; kisi verisi
+      // yalnizca '#' sonrasinda tasinir.
+      final url = VCardShareLink.build(content);
+      expect(url.substring(0, url.indexOf('#')), VCardShareLink.defaultBaseUrl);
+    });
+
+    test('bozuk baglantida null doner', () {
+      expect(VCardShareLink.tryParse('https://ornek.com/v/'), isNull);
+      expect(VCardShareLink.tryParse('https://ornek.com/v/#'), isNull);
+      expect(VCardShareLink.tryParse('https://ornek.com/v/#%%%'), isNull);
+    });
+  });
+
   group('Ikili kodlayici', () {
     test('mesaj cift yonlu', () {
       final message = NdefConverter.encodeAll([

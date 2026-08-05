@@ -206,7 +206,12 @@ abstract final class NdefConverter {
   static VCardContent? _decodeVCard(Uint8List payload) {
     final raw = _decodeUtf8OrLatin1(payload);
     if (raw == null) return null;
+    return decodeVCardText(raw);
+  }
 
+  /// Duz vCard metnini cozumler (MIME kaydi disindan da kullanilir,
+  /// orn. `VCardShareLink.tryParse`).
+  static VCardContent? decodeVCardText(String raw) {
     final unfolded = _unfoldVCardLines(raw);
     final lineMap = <String, List<String>>{};
 
@@ -259,7 +264,19 @@ abstract final class NdefConverter {
     );
   }
 
-  static NdefRecordEntity _encodeVCard(VCardContent content) {
+  static NdefRecordEntity _encodeVCard(VCardContent content) =>
+      NdefRecordEntity(
+        typeNameFormat: NdefTypeNameFormat.media,
+        type: Uint8List.fromList(ascii.encode('text/vcard')),
+        identifier: Uint8List(0),
+        payload: Uint8List.fromList(utf8.encode(encodeVCardText(content))),
+      );
+
+  /// vCard 3.0 metnini uretir (satir katlama dahil, CRLF ayracli).
+  ///
+  /// MIME kaydinin yuku budur; `VCardShareLink` de ayni metni URL
+  /// fragment'ina gomer.
+  static String encodeVCardText(VCardContent content) {
     final lines = <String>[
       'BEGIN:VCARD',
       'VERSION:3.0',
@@ -294,14 +311,7 @@ abstract final class NdefConverter {
 
     lines.add('END:VCARD');
 
-    final vcard = lines.expand(_foldVCardLine).join('\r\n');
-
-    return NdefRecordEntity(
-      typeNameFormat: NdefTypeNameFormat.media,
-      type: Uint8List.fromList(ascii.encode('text/vcard')),
-      identifier: Uint8List(0),
-      payload: Uint8List.fromList(utf8.encode(vcard)),
-    );
+    return lines.expand(_foldVCardLine).join('\r\n');
   }
 
   static String? _decodeUtf8OrLatin1(Uint8List bytes) {

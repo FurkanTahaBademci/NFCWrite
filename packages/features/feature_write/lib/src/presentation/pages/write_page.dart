@@ -9,13 +9,31 @@ import '../widgets/record_type_sheet.dart';
 
 /// Yazma sekmesi.
 class WritePage extends ConsumerStatefulWidget {
-  const WritePage({super.key});
+  const WritePage({super.key, this.fromHistoryId});
+
+  /// Verilirse, ekran acilirken bu gecmis kaydinin NDEF icerigi
+  /// duzenleme listesine yuklenir (bkz. `HistoryPage` — "Yazma ekranına
+  /// yükle").
+  final int? fromHistoryId;
 
   @override
   ConsumerState<WritePage> createState() => _WritePageState();
 }
 
 class _WritePageState extends ConsumerState<WritePage> {
+  @override
+  void initState() {
+    super.initState();
+    final fromHistoryId = widget.fromHistoryId;
+    if (fromHistoryId != null) {
+      Future.microtask(
+        () => ref.read(writeControllerProvider.notifier).loadFromHistory(
+          fromHistoryId,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -144,9 +162,12 @@ class _WritePageState extends ConsumerState<WritePage> {
   }
 
   Future<void> _addRecord() async {
-    final content = await RecordTypeSheet.show(context);
-    if (content == null || !mounted) return;
-    ref.read(writeControllerProvider.notifier).addRecord(content);
+    final contents = await RecordTypeSheet.show(context);
+    if (contents == null || !mounted) return;
+    final controller = ref.read(writeControllerProvider.notifier);
+    for (final content in contents) {
+      controller.addRecord(content);
+    }
   }
 
   Future<void> _editRecord({
@@ -155,9 +176,24 @@ class _WritePageState extends ConsumerState<WritePage> {
   }) async {
     final updated = await RecordTypeSheet.edit(context, record);
     if (updated == null || !mounted) return;
-    ref
-        .read(writeControllerProvider.notifier)
-        .updateRecord(index: index, content: updated);
+    final controller = ref.read(writeControllerProvider.notifier);
+    controller.updateRecord(index: index, content: updated);
+
+    // vCard değiştiyse iPhone uyumluluk bağlantısı bayatlamasın: listedeki
+    // ilk VCardShareLink kaydını yeni içerikle güncelle.
+    if (updated is VCardContent) {
+      final records = ref.read(writeControllerProvider).records;
+      final linkIndex = records.indexWhere(
+        (r) =>
+            r is UriContent && r.uri.startsWith(VCardShareLink.defaultBaseUrl),
+      );
+      if (linkIndex >= 0) {
+        controller.updateRecord(
+          index: linkIndex,
+          content: UriContent(VCardShareLink.build(updated)),
+        );
+      }
+    }
   }
 
   void _openScanSheet() {
@@ -215,6 +251,8 @@ class _WritePageState extends ConsumerState<WritePage> {
 
   static String _labelFor(NdefContent content) => switch (content) {
     TextContent() => 'Metin',
+    UriContent(:final uri) when uri.startsWith(VCardShareLink.defaultBaseUrl) =>
+      'iPhone kişi bağlantısı',
     UriContent() => 'Bağlantı',
     VCardContent() => 'vCard',
     MimeContent(:final mimeType) => mimeType,

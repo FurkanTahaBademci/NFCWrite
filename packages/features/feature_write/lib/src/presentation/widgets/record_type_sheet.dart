@@ -5,8 +5,11 @@ import 'package:ndef_codec/ndef_codec.dart';
 /// Kayıt tipi seçici + basit sihirbaz.
 abstract final class RecordTypeSheet {
   /// Seçici sayfayı açar. Kullanıcı vazgeçerse null döner.
-  static Future<NdefContent?> show(BuildContext context) =>
-      Navigator.of(context).push<NdefContent>(
+  ///
+  /// Çoğu sihirbaz tek kayıt döndürür; vCard sihirbazı iPhone uyumluluğu
+  /// açıksa vCard + bağlantı kaydından oluşan iki elemanlı liste döndürür.
+  static Future<List<NdefContent>?> show(BuildContext context) =>
+      Navigator.of(context).push<List<NdefContent>>(
         MaterialPageRoute(builder: (_) => const _RecordTypePage()),
       );
 
@@ -374,15 +377,15 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       MaterialPageRoute(builder: (_) => _RecordInputPage(config: config)),
     );
     if (content == null || !context.mounted) return;
-    Navigator.of(context).pop(content);
+    Navigator.of(context).pop(<NdefContent>[content]);
   }
 
   Future<void> _openVCardEditor(BuildContext context) async {
-    final content = await Navigator.of(context).push<NdefContent>(
+    final contents = await Navigator.of(context).push<List<NdefContent>>(
       MaterialPageRoute(builder: (_) => const _VCardInputPage()),
     );
-    if (content == null || !context.mounted) return;
-    Navigator.of(context).pop(content);
+    if (contents == null || !context.mounted) return;
+    Navigator.of(context).pop(contents);
   }
 }
 
@@ -510,6 +513,12 @@ class _VCardInputPage extends StatefulWidget {
 }
 
 class _VCardInputPageState extends State<_VCardInputPage> {
+  // iOS arka plan NFC okuması MIME vCard kayıtlarını yok sayar; bu anahtar
+  // açıkken karta ikinci bir URI kaydı (VCardShareLink) eklenir.
+  bool _iphoneCompat = true;
+
+  bool get _isEditing => widget.initial != null;
+
   late final TextEditingController _fullName;
   late final TextEditingController _givenName;
   late final TextEditingController _familyName;
@@ -660,7 +669,8 @@ class _VCardInputPageState extends State<_VCardInputPage> {
             maxLines: 4,
             decoration: const InputDecoration(
               labelText: 'Sosyal medya linkleri',
-              hintText: 'https://instagram.com/kullanici\nhttps://linkedin.com/in/kullanici',
+              hintText:
+                  'https://instagram.com/kullanici\nhttps://linkedin.com/in/kullanici',
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -673,6 +683,22 @@ class _VCardInputPageState extends State<_VCardInputPage> {
               hintText: 'Ek bilgi',
             ),
           ),
+          if (!_isEditing) ...[
+            const SizedBox(height: AppSpacing.md),
+            Card(
+              child: SwitchListTile(
+                value: _iphoneCompat,
+                onChanged: (value) => setState(() => _iphoneCompat = value),
+                title: const Text('iPhone uyumluluğu'),
+                subtitle: const Text(
+                  'iPhone\'lar vCard kaydını arka planda okumaz. Bu seçenek '
+                  'karta ek bir bağlantı kaydı yazar; iPhone bağlantıyı açar '
+                  've kişi "Kişilere Ekle" olarak sunulur. Kişi verisi kartta '
+                  'kalır, sunucuya gönderilmez.',
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
           SizedBox(
             width: double.infinity,
@@ -709,7 +735,18 @@ class _VCardInputPageState extends State<_VCardInputPage> {
       note: _nullIfBlank(_note.text),
     );
 
-    Navigator.of(context).pop(content);
+    if (_isEditing) {
+      // Düzenleme akışı tek kayıt bekler (route tipi NdefContent).
+      Navigator.of(context).pop(content);
+      return;
+    }
+
+    // Record stacking: Android ilk kaydı (vCard) Kişiler'e açar, iOS
+    // desteklemediği vCard'ı atlayıp bağlantı kaydını bildirim yapar.
+    Navigator.of(context).pop(<NdefContent>[
+      content,
+      if (_iphoneCompat) UriContent(VCardShareLink.build(content)),
+    ]);
   }
 
   String? _nullIfBlank(String value) {
