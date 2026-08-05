@@ -226,6 +226,28 @@ abstract final class ToolCatalog {
       taskId: 'T4.32',
       expertOnly: true,
     ),
+    ToolDefinition(
+      id: 'mifare_clone',
+      title: 'Magic kart klonla',
+      description: 'Bir MIFARE Classic kartı magic karta kopyala (blok 0 dahil)',
+      icon: Icons.content_copy,
+      category: ToolCategory.content,
+      risk: RiskLevel.warning,
+      taskId: 'T4.18',
+      implemented: true,
+      expertOnly: true,
+    ),
+    ToolDefinition(
+      id: 'mifare_write_block',
+      title: 'Sektör 0 / blok yaz',
+      description: 'Tek bir MIFARE Classic bloğunu yaz (UID/blok 0 dahil)',
+      icon: Icons.edit_note,
+      category: ToolCategory.configuration,
+      risk: RiskLevel.warning,
+      taskId: 'T4.33',
+      implemented: true,
+      expertOnly: true,
+    ),
   ];
 
   /// Kategoriye göre araçları döndürür.

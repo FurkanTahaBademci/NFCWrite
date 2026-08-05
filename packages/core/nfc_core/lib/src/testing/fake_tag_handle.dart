@@ -70,10 +70,13 @@ final class FakeTagHandle implements NfcTagHandle {
     },
     Map<int, Uint8List>? pages,
     Set<Uint8List>? validSectorKeys,
+    Set<int>? readOnlyClassicBlocks,
   }) : uid = Uint8List.fromList(uid),
        _rules = List.of(rules),
        _pages = pages ?? <int, Uint8List>{},
-       _validSectorKeys = validSectorKeys ?? <Uint8List>{} {
+       _validSectorKeys = validSectorKeys ?? <Uint8List>{},
+       _readOnlyClassicBlocks =
+           readOnlyClassicBlocks == null ? null : Set.of(readOnlyClassicBlocks) {
     _ndefMessage = ndefMessage;
   }
 
@@ -108,6 +111,10 @@ final class FakeTagHandle implements NfcTagHandle {
   final Map<int, Uint8List> _pages;
   final Set<Uint8List> _validSectorKeys;
 
+  /// Yazma reddedecek MIFARE Classic blok indeksleri (orn. standart bir
+  /// kartta blok 0). `null` ise tum bloklar yazilabilir.
+  final Set<int>? _readOnlyClassicBlocks;
+
   NdefMessageEntity? _ndefMessage;
   bool _readOnly = false;
 
@@ -118,6 +125,9 @@ final class FakeTagHandle implements NfcTagHandle {
 
   /// Yazilan tum sayfalar: `(sayfa, veri)` ciftleri, sirasiyla.
   final List<({int page, Uint8List data})> writtenPages = [];
+
+  /// Yazilan tum MIFARE Classic bloklari: `(blok, veri)` ciftleri.
+  final List<({int block, Uint8List data})> writtenClassicBlocks = [];
 
   /// Etikete yazilan son NDEF mesaji.
   NdefMessageEntity? get lastWrittenNdef => _ndefMessage;
@@ -132,6 +142,7 @@ final class FakeTagHandle implements NfcTagHandle {
   void reset() {
     sentCommands.clear();
     writtenPages.clear();
+    writtenClassicBlocks.clear();
   }
 
   @override
@@ -259,7 +270,11 @@ final class FakeTagHandle implements NfcTagHandle {
     if (data.length != 16) {
       return const Err(InvalidArgument('Blok verisi 16 byte olmali'));
     }
+    if (_readOnlyClassicBlocks?.contains(blockIndex) ?? false) {
+      return const Err(TagReadOnly());
+    }
     _pages[blockIndex] = Uint8List.fromList(data);
+    writtenClassicBlocks.add((block: blockIndex, data: Uint8List.fromList(data)));
     return okVoid;
   }
 

@@ -118,6 +118,84 @@ final class MifareKeyScanReport {
   bool get allUnlocked => sectorKeys.length == totalSectors;
 }
 
+/// Bir MIFARE Classic kartinin blok 0 (UID / manufacturer) yazma
+/// yetenegini siniflandirir.
+///
+/// Standart kartlarda blok 0 fabrikada kilitlidir. "Magic" kartlar bunu
+/// asar; nesillerine gore farkli yontemler kullanir.
+enum MifareMagicKind {
+  /// Blok 0 yazilamiyor — standart (magic olmayan) kart.
+  none,
+
+  /// Gen1a: arka kapi (backdoor) komutlariyla yazilir. Cogu Android
+  /// yongasi bu 7-bitlik ham komutlari **gonderemez**.
+  gen1a,
+
+  /// Gen2 / CUID / "Direct Write": blok 0 normal yazma komutuyla yazilir.
+  /// Android'de calisan pratik yontem budur.
+  gen2,
+
+  /// Yazilabilirlik belirlenemedi (orn. sektor 0 anahtari bulunamadi).
+  unknown,
+}
+
+/// Bir MIFARE Classic kartinin blok 0 yazilabilirlik testinin sonucu.
+///
+/// [TagOperations.probeMifareMagic] tarafindan uretilir. Test **tahrip
+/// edici degildir**:
+/// yalnizca mevcut blok 0 icerigi ayni sekilde geri yazilmayi dener.
+@immutable
+final class MifareMagicProbe {
+  const MifareMagicProbe({
+    required this.isBlockZeroWritable,
+    required this.kind,
+    required this.detail,
+  });
+
+  /// Blok 0 (UID) degistirilebiliyor mu?
+  final bool isBlockZeroWritable;
+
+  /// Tespit edilen magic kart nesli.
+  final MifareMagicKind kind;
+
+  /// Kullaniciya gosterilebilecek aciklama.
+  final String detail;
+}
+
+/// Bir MIFARE Classic kartinin baska bir karta klonlanmasinin sonucu.
+@immutable
+final class MifareCloneReport {
+  const MifareCloneReport({
+    required this.sourceUidHex,
+    required this.targetUidHex,
+    required this.blocksWritten,
+    required this.blocksSkipped,
+    required this.blocksFailed,
+    required this.blockZeroWritten,
+    required this.trailersWritten,
+  });
+
+  final String sourceUidHex;
+  final String targetUidHex;
+
+  /// Basariyla yazilan blok sayisi.
+  final int blocksWritten;
+
+  /// Bilerek atlanan blok sayisi (okunamayan kaynak bloklari veya
+  /// [TagOperations.cloneMifareClassicTo] cagrisinda yazilmayan sektor
+  /// fragmanlari).
+  final int blocksSkipped;
+
+  /// Yazmasi denenip basarisiz olan blok sayisi.
+  final int blocksFailed;
+
+  /// Blok 0 (UID) yazilabildi mi?
+  final bool blockZeroWritten;
+
+  /// Sektor fragmanlari (anahtar/erisim byte'lari) da yazildi mi?
+  final bool trailersWritten;
+}
+
 /// Etiket uzerindeki yuksek seviye islemler.
 ///
 /// `tag_ops` paketi tarafindan uygulanir. Feature katmani yalnizca bu
@@ -309,6 +387,45 @@ abstract interface class TagOperations {
   Future<Result<MifareKeyScanReport>> scanMifareClassicKeys(
     NfcTagHandle tag, {
     List<Uint8List>? keyDictionary,
+  });
+
+  /// MIFARE Classic kartinin blok 0 (UID) yazilabilirligini test eder.
+  ///
+  /// **Tahrip edici degildir:** mevcut blok 0 icerigi ayni sekilde geri
+  /// yazilmayi dener. Basarili olursa kart "magic" (Gen2/CUID) demektir ve
+  /// UID degistirilebilir. Bkz. [MifareMagicProbe].
+  Future<Result<MifareMagicProbe>> probeMifareMagic(NfcTagHandle tag);
+
+  /// Tek bir MIFARE Classic blogunu yazar (blok 0 dahil).
+  ///
+  /// Once blogun ait oldugu sektore [key] / [keyType] ile kimlik dogrular,
+  /// sonra 16 byte'lik [data]'yi yazar. Blok 0 icin BCC dogrulanir; hatali
+  /// BCC `InvalidArgument` ile reddedilir (karti olu hale getirmemek icin).
+  ///
+  /// Standart kartlarda blok 0 yazma donanim tarafindan reddedilir; bu
+  /// islem yalnizca magic kartlarda basarili olur.
+  Future<Result<void>> writeMifareClassicBlock(
+    NfcTagHandle tag, {
+    required int blockIndex,
+    required Uint8List data,
+    required Uint8List key,
+    MifareKeyType keyType,
+    required DangerAck ack,
+  });
+
+  /// Onceden okunmus bir MIFARE Classic dokumunu [target] karta klonlar.
+  ///
+  /// Hedef karta once [probeMifareMagic] uygulanir; blok 0 yazilamiyorsa
+  /// `TagNotSupported` doner (yarim klon yapilmaz). Okunamayan kaynak
+  /// bloklari atlanir. [writeSectorTrailers] varsayilan olarak `false`'tur:
+  /// anahtar/erisim byte'larini yazmak sektoru olu hale getirebilecegi icin
+  /// yalnizca acikca istenirse yazilir.
+  Future<Result<MifareCloneReport>> cloneMifareClassicTo(
+    NfcTagHandle target, {
+    required TagMemory source,
+    required String sourceUidHex,
+    bool writeSectorTrailers,
+    required DangerAck ack,
   });
 
   /// ISO 15693 blok okur.

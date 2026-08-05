@@ -4,8 +4,12 @@ import 'package:nfc_core/nfc_core.dart';
 import 'package:shared_utils/shared_utils.dart';
 
 import 'config_parser.dart';
+import 'ecc/ecdsa.dart';
+import 'iso15693_system_info.dart';
+import 'mifare_classic_layout.dart';
 import 'ntag_commands.dart';
 import 'ntag_layout.dart';
+import 'nxp_originality_keys.dart';
 
 /// [TagOperations] arayuzunun uygulamasi.
 ///
@@ -52,9 +56,76 @@ final class TagOperationsImpl implements TagOperations {
       _log.debug('Tanimlanamayan GET_VERSION: ${bytesToHex(value)}');
     }
 
+    if (tag.technologies.contains(TagTechnology.nfcV)) {
+      return _identifyIso15693(tag, manufacturer);
+    }
+
     // GET_VERSION yok ya da tanimlanamadi — ATQA/SAK ve teknoloji
     // listesinden tahmin et.
     return Ok(_identifyFromTechnologies(tag, manufacturer));
+  }
+
+  /// ISO 15693 (ICODE/NfcV) etiketlerini `GET_SYSTEM_INFO` ile tanimlar.
+  ///
+  /// IC referans byte'i SLIX/SLIX2 ayrimi icin kullanilir ama bu eslesme
+  /// ⚠️ dogrulanmamistir (bkz. `IcodeIcReference`). Sistem bilgisi hic
+  /// okunamasa bile jenerik bir kimlik donduruyoruz — mevcut davranistan
+  /// daha kotu olmamak icin.
+  Future<Result<TagIdentity>> _identifyIso15693(
+    NfcTagHandle tag,
+    TagManufacturer manufacturer,
+  ) async {
+    final infoResult = await _readIso15693SystemInfo(tag);
+    final info = infoResult.valueOrNull;
+
+    final family = switch (info?.icReference) {
+      IcodeIcReference.slix2 => TagChipFamily.icodeSlix2,
+      _ => TagChipFamily.icodeSlix,
+    };
+
+    final displayName = switch (info?.icReference) {
+      IcodeIcReference.slix2 => 'ICODE SLIX2',
+      IcodeIcReference.slix => 'ICODE SLIX',
+      _ => 'ISO 15693 etiketi',
+    };
+
+    return Ok(
+      TagIdentity(
+        family: family,
+        manufacturer: manufacturer,
+        displayName: displayName,
+        totalBytes: info?.totalBytes,
+        userBytes: info?.totalBytes,
+        totalPages: info?.blockCount,
+        pageSize: info?.blockSize ?? 4,
+      ),
+    );
+  }
+
+  /// `GET_SYSTEM_INFO` (0x2B) gonderir ve cevabi cozumler.
+  Future<Result<Iso15693SystemInfo>> _readIso15693SystemInfo(
+    NfcTagHandle tag,
+  ) async {
+    if (!tag.supportsChannel(TransceiveChannel.nfcV)) {
+      return const Err(TagNotSupported(detail: 'NfcV kanali yok'));
+    }
+    final result = await tag.transceive(
+      Iso15693Commands.getSystemInformation(uid: tag.uid),
+      channel: TransceiveChannel.nfcV,
+    );
+    return switch (result) {
+      Err(:final failure) => Err(failure),
+      Ok(:final value) when value.isEmpty => const Err(
+        MalformedData('Bos cevap'),
+      ),
+      Ok(:final value) when value[0].bit(0) => Err(
+        MalformedData(
+          'ISO 15693 hata kodu: '
+          '0x${value.length > 1 ? value[1].toHexByte() : '??'}',
+        ),
+      ),
+      Ok(:final value) => Iso15693SystemInfo.parse(value),
+    };
   }
 
   TagIdentity _identifyFromTechnologies(
@@ -81,14 +152,6 @@ final class TagOperationsImpl implements TagOperations {
         userBytes: classic.sizeInBytes,
         totalPages: classic.blockCount,
         pageSize: 16,
-      );
-    }
-
-    if (tag.technologies.contains(TagTechnology.nfcV)) {
-      return TagIdentity(
-        family: TagChipFamily.icodeSlix,
-        manufacturer: manufacturer,
-        displayName: 'ISO 15693 etiketi',
       );
     }
 
@@ -178,7 +241,7 @@ final class TagOperationsImpl implements TagOperations {
     }
 
     if (identity.isMifareClassic) {
-      return const Err(NotImplementedYet('T4.33'));
+      return _readMifareClassicMemory(tag);
     }
 
     final channel = _pickCommandChannel(tag);
@@ -366,9 +429,42 @@ final class TagOperationsImpl implements TagOperations {
   }
 
   @override
-  Future<Result<bool>> verifySignature(NfcTagHandle tag) async =>
-      // ECC secp128r1 dogrulamasi + NXP acik anahtar tablosu gerekiyor.
-      const Err(NotImplementedYet('T4.12'));
+  Future<Result<bool>> verifySignature(NfcTagHandle tag) async {
+    // Dogrulama motoru (ECC secp128r1 + ECDSA) hazir; yalnizca NXP genel
+    // anahtari eksik. Bkz. `NxpOriginalityKeys` — yanlis bir sabitle
+    // "gecerli" sonucu uretmek sahte etiket tespitini anlamsizlastirir.
+    const publicKey = NxpOriginalityKeys.ntag21x;
+    if (publicKey == null) {
+      return const Err(
+        TagNotSupported(
+          detail:
+              'NXP genel anahtari henuz dogrulanmadi (bkz. NxpOriginalityKeys)',
+        ),
+      );
+    }
+
+    final signatureResult = await readSignature(tag);
+    if (signatureResult case Err(:final failure)) return Err(failure);
+    final signature = (signatureResult as Ok<Uint8List>).value;
+
+    // NXP AN11350: imzalanan veri bir hash degil, dogrudan etiketin
+    // UID'idir. r ve s her biri 16 byte (secp128r1 mertebesi 128 bit).
+    final r = _bytesToBigInt(signature.sublist(0, 16));
+    final s = _bytesToBigInt(signature.sublist(16, 32));
+    final message = _bytesToBigInt(tag.uid);
+
+    return Ok(
+      Ecdsa.verify(message: message, r: r, s: s, publicKey: publicKey),
+    );
+  }
+
+  static BigInt _bytesToBigInt(List<int> bytes) {
+    var value = BigInt.zero;
+    for (final byte in bytes) {
+      value = (value << 8) | BigInt.from(byte & 0xFF);
+    }
+    return value;
+  }
 
   @override
   Future<Result<Uint8List>> authenticate(
@@ -450,7 +546,9 @@ final class TagOperationsImpl implements TagOperations {
 
     if (layout.family == TagChipFamily.unknown || layout.totalPages <= 0) {
       return const Err(
-        TagNotSupported(detail: 'Bu etiketin fabrika sıfırlaması desteklenmiyor'),
+        TagNotSupported(
+          detail: 'Bu etiketin fabrika sıfırlaması desteklenmiyor',
+        ),
       );
     }
 
@@ -546,14 +644,19 @@ final class TagOperationsImpl implements TagOperations {
 
     final firstPage = dump.startPage;
     final lastPage = dump.startPage + dump.pageCount - 1;
-    if (firstPage < identity.userPageStart! || lastPage > identity.userPageEnd!) {
-      return const Err(TagNotSupported(detail: 'Döküm bu etiketin kullanıcı alanına sığmıyor'));
+    if (firstPage < identity.userPageStart! ||
+        lastPage > identity.userPageEnd!) {
+      return const Err(
+        TagNotSupported(detail: 'Döküm bu etiketin kullanıcı alanına sığmıyor'),
+      );
     }
 
     for (var index = 0; index < dump.pageCount; index++) {
       final page = dump.startPage + index;
       final start = index * dump.pageSize;
-      final end = start + dump.pageSize > dump.bytes.length ? dump.bytes.length : start + dump.pageSize;
+      final end = start + dump.pageSize > dump.bytes.length
+          ? dump.bytes.length
+          : start + dump.pageSize;
       final data = Uint8List(4);
       if (start < dump.bytes.length) {
         data.setRange(0, end - start, dump.bytes.sublist(start, end));
@@ -739,7 +842,17 @@ final class TagOperationsImpl implements TagOperations {
 
     final configResult = await _readConfigState(tag);
     if (configResult case Err(:final failure)) return Err(failure);
-    final state = (configResult as Ok<({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})>).value;
+    final state =
+        (configResult
+                as Ok<
+                  ({
+                    NtagLayout layout,
+                    NtagConfig config,
+                    Uint8List cfg0,
+                    Uint8List cfg1,
+                  })
+                >)
+            .value;
 
     if (!state.layout.supportsMirror) {
       return const Err(
@@ -767,7 +880,13 @@ final class TagOperationsImpl implements TagOperations {
       mirrorByte: mirrorByte,
       strongModulation: state.config.strongModulation,
     );
-    return _writeConfigState(tag, state.layout, state.cfg0, state.cfg1, updated);
+    return _writeConfigState(
+      tag,
+      state.layout,
+      state.cfg0,
+      state.cfg1,
+      updated,
+    );
   }
 
   @override
@@ -782,7 +901,17 @@ final class TagOperationsImpl implements TagOperations {
 
     final configResult = await _readConfigState(tag);
     if (configResult case Err(:final failure)) return Err(failure);
-    final state = (configResult as Ok<({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})>).value;
+    final state =
+        (configResult
+                as Ok<
+                  ({
+                    NtagLayout layout,
+                    NtagConfig config,
+                    Uint8List cfg0,
+                    Uint8List cfg1,
+                  })
+                >)
+            .value;
 
     if (!state.layout.supportsCounter) {
       return const Err(
@@ -794,7 +923,13 @@ final class TagOperationsImpl implements TagOperations {
       counterEnabled: enabled,
       counterPasswordProtected: passwordProtected,
     );
-    return _writeConfigState(tag, state.layout, state.cfg0, state.cfg1, updated);
+    return _writeConfigState(
+      tag,
+      state.layout,
+      state.cfg0,
+      state.cfg1,
+      updated,
+    );
   }
 
   @override
@@ -831,7 +966,418 @@ final class TagOperationsImpl implements TagOperations {
   Future<Result<MifareKeyScanReport>> scanMifareClassicKeys(
     NfcTagHandle tag, {
     List<Uint8List>? keyDictionary,
-  }) async => const Err(NotImplementedYet('T4.32'));
+  }) async {
+    final classicInfo = tag.mifareClassicInfo;
+    if (classicInfo == null) {
+      return const Err(TagNotSupported(detail: 'MIFARE Classic etiketi degil'));
+    }
+
+    final keys = keyDictionary ?? MifareClassicLayout.defaultKeys;
+    final sectorKeys = <int, ({MifareKeyType type, Uint8List key})>{};
+
+    for (var sector = 0; sector < classicInfo.sectorCount; sector++) {
+      final found = await _findSectorKey(tag, sector, keys);
+      if (found case Err(:final failure)) return Err(failure);
+      final key = (found as Ok<({MifareKeyType type, Uint8List key})?>).value;
+      if (key != null) sectorKeys[sector] = key;
+    }
+
+    return Ok(
+      MifareKeyScanReport(
+        sectorKeys: sectorKeys,
+        totalSectors: classicInfo.sectorCount,
+      ),
+    );
+  }
+
+  @override
+  Future<Result<MifareMagicProbe>> probeMifareMagic(NfcTagHandle tag) async {
+    if (tag.mifareClassicInfo == null) {
+      return const Err(TagNotSupported(detail: 'MIFARE Classic etiketi degil'));
+    }
+
+    // Sektor 0'i acan anahtari bul — blok 0'i okumak/yazmak icin sart.
+    final keyResult = await _findSectorKey(
+      tag,
+      0,
+      MifareClassicLayout.defaultKeys,
+    );
+    if (keyResult case Err(:final failure)) return Err(failure);
+    final key = (keyResult as Ok<({MifareKeyType type, Uint8List key})?>).value;
+    if (key == null) {
+      return const Ok(
+        MifareMagicProbe(
+          isBlockZeroWritable: false,
+          kind: MifareMagicKind.unknown,
+          detail:
+              'Sektor 0 varsayilan anahtarlarla acilamadi; blok 0 '
+              'yazilabilirligi test edilemedi.',
+        ),
+      );
+    }
+
+    // Mevcut blok 0'i oku.
+    final authRead = await tag.authenticateSector(
+      sectorIndex: 0,
+      key: key.key,
+      keyType: key.type,
+    );
+    if (authRead case Err(:final failure)) return Err(failure);
+    final readResult = await tag.readClassicBlock(0);
+    if (readResult case Err(:final failure)) return Err(failure);
+    final original = (readResult as Ok<Uint8List>).value;
+    if (original.length < 16) {
+      return const Err(MalformedData('Blok 0 eksik dondu'));
+    }
+
+    // Ayni veriyi geri yazmayi dene: icerik degismez, yalnizca blok 0'in
+    // yazilabilir olup olmadigini ogreniriz (Gen2 / CUID tespiti).
+    final authWrite = await tag.authenticateSector(
+      sectorIndex: 0,
+      key: key.key,
+      keyType: key.type,
+    );
+    if (authWrite case Err(:final failure)) return Err(failure);
+    final writeResult = await tag.writeClassicBlock(
+      0,
+      Uint8List.fromList(original.sublist(0, 16)),
+    );
+
+    return switch (writeResult) {
+      Err(failure: TagLost()) => const Err(TagLost()),
+      Err() => const Ok(
+        MifareMagicProbe(
+          isBlockZeroWritable: false,
+          kind: MifareMagicKind.none,
+          detail:
+              'Blok 0 yazma reddedildi — standart (magic olmayan) kart. '
+              'Gen1a arka kapi komutlari cogu Android cihazda gonderilemez.',
+        ),
+      ),
+      Ok() => const Ok(
+        MifareMagicProbe(
+          isBlockZeroWritable: true,
+          kind: MifareMagicKind.gen2,
+          detail:
+              'Blok 0 dogrudan yazma komutuyla yazilabildi (Gen2 / CUID). '
+              'UID ve sektor 0 degistirilebilir.',
+        ),
+      ),
+    };
+  }
+
+  @override
+  Future<Result<void>> writeMifareClassicBlock(
+    NfcTagHandle tag, {
+    required int blockIndex,
+    required Uint8List data,
+    required Uint8List key,
+    MifareKeyType keyType = MifareKeyType.keyB,
+    required DangerAck ack,
+  }) async {
+    final guard = _guard(tag, ack);
+    if (guard != null) return Err(guard);
+
+    final info = tag.mifareClassicInfo;
+    if (info == null) {
+      return const Err(TagNotSupported(detail: 'MIFARE Classic etiketi degil'));
+    }
+    if (data.length != 16) {
+      return const Err(InvalidArgument('Blok verisi tam 16 byte olmali'));
+    }
+    if (key.length != 6) {
+      return const Err(InvalidArgument('Anahtar 6 byte olmali'));
+    }
+    if (blockIndex < 0 || blockIndex >= info.blockCount) {
+      return Err(
+        InvalidArgument('Blok $blockIndex yok (0-${info.blockCount - 1})'),
+      );
+    }
+
+    // Blok 0 BCC guvenlik agi: hatali BCC karti bazi okuyuculara karsi olu
+    // hale getirir. Cagiran, BCC'yi onceden duzeltmeli.
+    if (blockIndex == 0 && !MifareClassicLayout.isBlockZeroBccValid(data)) {
+      return const Err(
+        InvalidArgument(
+          'Blok 0 BCC hatali (5. byte UID0^UID1^UID2^UID3 olmali)',
+        ),
+      );
+    }
+
+    final sector = MifareClassicLayout.sectorOfBlock(
+      blockIndex,
+      sectorCount: info.sectorCount,
+    );
+
+    final authResult = await tag.authenticateSector(
+      sectorIndex: sector,
+      key: key,
+      keyType: keyType,
+    );
+    switch (authResult) {
+      case Ok(:final value) when !value:
+        return const Err(AuthenticationFailed());
+      case Err(:final failure):
+        return Err(failure);
+      case Ok():
+        break;
+    }
+
+    final writeResult = await tag.writeClassicBlock(blockIndex, data);
+    if (writeResult case Err(:final failure)) return Err(failure);
+
+    // Dogrulama: sektor fragmani disindaki bloklari geri okuyup karsilastir.
+    // Fragmanda anahtar byte'lari okunamaz (0x00 doner), o yuzden atlanir.
+    if (!MifareClassicLayout.isTrailerBlock(
+      blockIndex,
+      sectorCount: info.sectorCount,
+    )) {
+      final reauth = await tag.authenticateSector(
+        sectorIndex: sector,
+        key: key,
+        keyType: keyType,
+      );
+      if (reauth case Err(:final failure)) return Err(failure);
+      final readBack = await tag.readClassicBlock(blockIndex);
+      if (readBack case Ok(:final value) when !bytesEqual(value, data)) {
+        return const Err(VerificationFailed());
+      }
+    }
+
+    return okVoid;
+  }
+
+  @override
+  Future<Result<MifareCloneReport>> cloneMifareClassicTo(
+    NfcTagHandle target, {
+    required TagMemory source,
+    required String sourceUidHex,
+    bool writeSectorTrailers = false,
+    required DangerAck ack,
+  }) async {
+    final guard = _guard(target, ack);
+    if (guard != null) return Err(guard);
+
+    final info = target.mifareClassicInfo;
+    if (info == null) {
+      return const Err(
+        TagNotSupported(detail: 'Hedef MIFARE Classic etiketi degil'),
+      );
+    }
+    if (source.pageSize != 16) {
+      return const Err(
+        TagNotSupported(detail: 'Kaynak dokumu MIFARE Classic bicimi degil'),
+      );
+    }
+
+    // Hedef magic mi? Blok 0 yazilamiyorsa klon anlamsiz — yarim is yapma.
+    final probeResult = await probeMifareMagic(target);
+    if (probeResult case Err(:final failure)) return Err(failure);
+    final probe = (probeResult as Ok<MifareMagicProbe>).value;
+    if (!probe.isBlockZeroWritable) {
+      return Err(
+        TagNotSupported(
+          detail: 'Hedef kart blok 0 yazmaya izin vermiyor: ${probe.detail}',
+        ),
+      );
+    }
+
+    final sourceBlockCount = source.bytes.length ~/ 16;
+    final blockCount = sourceBlockCount < info.blockCount
+        ? sourceBlockCount
+        : info.blockCount;
+
+    var written = 0;
+    var skipped = 0;
+    var failed = 0;
+    var blockZeroWritten = false;
+    var trailersWritten = false;
+
+    for (var sector = 0; sector < info.sectorCount; sector++) {
+      final firstBlock = MifareClassicLayout.firstBlockOfSector(
+        sector,
+        sectorCount: info.sectorCount,
+      );
+      final blocksInSector = MifareClassicLayout.blocksInSector(
+        sector,
+        sectorCount: info.sectorCount,
+      );
+
+      // Hedef sektorun anahtarini bul — bos magic kart genelde FF FF ...
+      final keyResult = await _findSectorKey(
+        target,
+        sector,
+        MifareClassicLayout.defaultKeys,
+      );
+      if (keyResult case Err(:final failure)) return Err(failure);
+      final key =
+          (keyResult as Ok<({MifareKeyType type, Uint8List key})?>).value;
+
+      for (
+        var block = firstBlock;
+        block < firstBlock + blocksInSector && block < blockCount;
+        block++
+      ) {
+        final isTrailer = MifareClassicLayout.isTrailerBlock(
+          block,
+          sectorCount: info.sectorCount,
+        );
+        if (isTrailer && !writeSectorTrailers) {
+          skipped++;
+          continue;
+        }
+        if (source.unreadablePages.contains(block)) {
+          skipped++;
+          continue;
+        }
+        if (key == null) {
+          failed++;
+          continue;
+        }
+
+        var data = Uint8List.fromList(
+          source.bytes.sublist(block * 16, block * 16 + 16),
+        );
+        if (block == 0 && !MifareClassicLayout.isBlockZeroBccValid(data)) {
+          data = MifareClassicLayout.withBlockZeroBcc(data);
+        }
+
+        final auth = await target.authenticateSector(
+          sectorIndex: sector,
+          key: key.key,
+          keyType: key.type,
+        );
+        switch (auth) {
+          case Ok(:final value) when !value:
+            failed++;
+            continue;
+          case Err(failure: TagLost()):
+            return const Err(TagLost());
+          case Err():
+            failed++;
+            continue;
+          case Ok():
+            break;
+        }
+
+        final writeResult = await target.writeClassicBlock(block, data);
+        switch (writeResult) {
+          case Ok():
+            written++;
+            if (block == 0) blockZeroWritten = true;
+            if (isTrailer) trailersWritten = true;
+          case Err(failure: TagLost()):
+            return const Err(TagLost());
+          case Err():
+            failed++;
+        }
+      }
+    }
+
+    return Ok(
+      MifareCloneReport(
+        sourceUidHex: sourceUidHex,
+        targetUidHex: bytesToHex(target.uid),
+        blocksWritten: written,
+        blocksSkipped: skipped,
+        blocksFailed: failed,
+        blockZeroWritten: blockZeroWritten,
+        trailersWritten: trailersWritten,
+      ),
+    );
+  }
+
+  /// MIFARE Classic bellek dokumu.
+  ///
+  /// Her sektor icin sozlukteki anahtarlar sirayla denenir; hicbiri
+  /// tutmazsa o sektorun bloklari [TagMemory.unreadablePages] icinde
+  /// isaretlenir (sifre korumali NTAG sayfalari gibi).
+  Future<Result<TagMemory>> _readMifareClassicMemory(NfcTagHandle tag) async {
+    final classicInfo = tag.mifareClassicInfo;
+    if (classicInfo == null) {
+      return const Err(
+        TagNotSupported(detail: 'MIFARE Classic yapisi okunamadi'),
+      );
+    }
+
+    final sectorCount = classicInfo.sectorCount;
+    final buffer = Uint8List(classicInfo.blockCount * 16);
+    final unreadable = <int>{};
+
+    for (var sector = 0; sector < sectorCount; sector++) {
+      final firstBlock = MifareClassicLayout.firstBlockOfSector(
+        sector,
+        sectorCount: sectorCount,
+      );
+      final blockCount = MifareClassicLayout.blocksInSector(
+        sector,
+        sectorCount: sectorCount,
+      );
+
+      final keyResult = await _findSectorKey(
+        tag,
+        sector,
+        MifareClassicLayout.defaultKeys,
+      );
+      if (keyResult case Err(:final failure)) return Err(failure);
+      final key = (keyResult as Ok<({MifareKeyType type, Uint8List key})?>).value;
+
+      if (key == null) {
+        for (var b = firstBlock; b < firstBlock + blockCount; b++) {
+          unreadable.add(b);
+        }
+        continue;
+      }
+
+      for (var b = firstBlock; b < firstBlock + blockCount; b++) {
+        final result = await tag.readClassicBlock(b);
+        switch (result) {
+          case Ok(:final value):
+            final length = value.length < 16 ? value.length : 16;
+            buffer.setRange(b * 16, b * 16 + length, value);
+          case Err(failure: TagLost()):
+            return const Err(TagLost());
+          case Err():
+            unreadable.add(b);
+        }
+      }
+    }
+
+    return Ok(
+      TagMemory(bytes: buffer, pageSize: 16, unreadablePages: unreadable),
+    );
+  }
+
+  /// Bir sektor icin sozlukteki anahtarlari sirayla dener.
+  ///
+  /// Bulunursa `(tip, anahtar)` cifti, bulunamazsa `null` doner —
+  /// bu bir hata degildir, sektor baska bir anahtarla korunuyor demektir.
+  Future<Result<({MifareKeyType type, Uint8List key})?>> _findSectorKey(
+    NfcTagHandle tag,
+    int sector,
+    List<Uint8List> keys,
+  ) async {
+    for (final key in keys) {
+      for (final keyType in const [MifareKeyType.keyA, MifareKeyType.keyB]) {
+        final result = await tag.authenticateSector(
+          sectorIndex: sector,
+          key: key,
+          keyType: keyType,
+        );
+        switch (result) {
+          case Ok(:final value) when value:
+            return Ok((type: keyType, key: key));
+          case Ok():
+            continue;
+          case Err(failure: TagLost()):
+            return const Err(TagLost());
+          case Err():
+            continue;
+        }
+      }
+    }
+    return const Ok(null);
+  }
 
   @override
   Future<Result<Uint8List>> readIso15693Block(
@@ -869,7 +1415,11 @@ final class TagOperationsImpl implements TagOperations {
     required DangerAck ack,
   }) async => const Err(NotImplementedYet('T4.34'));
 
-  Future<Result<({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})>>
+  Future<
+    Result<
+      ({NtagLayout layout, NtagConfig config, Uint8List cfg0, Uint8List cfg1})
+    >
+  >
   _readConfigState(NfcTagHandle tag) async {
     final layoutResult = await _resolveLayout(tag);
     if (layoutResult case Err(:final failure)) {
@@ -879,7 +1429,9 @@ final class TagOperationsImpl implements TagOperations {
 
     final configPage = layout.configPage;
     if (configPage == null) {
-      return const Err(TagNotSupported(detail: 'Bu yongada yapilandirma sayfasi yok'));
+      return const Err(
+        TagNotSupported(detail: 'Bu yongada yapilandirma sayfasi yok'),
+      );
     }
 
     final raw = await tag.readUltralightPages(configPage);
@@ -909,7 +1461,8 @@ final class TagOperationsImpl implements TagOperations {
     final configPage = layout.configPage;
     if (configPage == null) {
       return const Err(
-        TagNotSupported(detail: 'Bu yongada yapilandirma sayfasi yok'));
+        TagNotSupported(detail: 'Bu yongada yapilandirma sayfasi yok'),
+      );
     }
 
     final cfg0 = ConfigParser.buildCfg0(config, previous: previousCfg0);

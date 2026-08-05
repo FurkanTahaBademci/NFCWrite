@@ -30,6 +30,10 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
   late final TextEditingController _currentPasswordController;
   late final TextEditingController _mirrorPageController;
   late final TextEditingController _mirrorByteController;
+  late final TextEditingController _mifareBlockController;
+  late final TextEditingController _mifareDataController;
+  late final TextEditingController _mifareKeyController;
+  MifareKeyType _mifareKeyType = MifareKeyType.keyA;
   TransceiveChannel _rawChannel = TransceiveChannel.nfcA;
   MirrorMode _mirrorMode = MirrorMode.none;
   bool _counterEnabled = false;
@@ -47,6 +51,9 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     _currentPasswordController = TextEditingController();
     _mirrorPageController = TextEditingController(text: '6');
     _mirrorByteController = TextEditingController(text: '0');
+    _mifareBlockController = TextEditingController(text: '0');
+    _mifareDataController = TextEditingController();
+    _mifareKeyController = TextEditingController(text: 'FFFFFFFFFFFF');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAvailableDumps();
     });
@@ -59,6 +66,9 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     _currentPasswordController.dispose();
     _mirrorPageController.dispose();
     _mirrorByteController.dispose();
+    _mifareBlockController.dispose();
+    _mifareDataController.dispose();
+    _mifareKeyController.dispose();
     super.dispose();
   }
 
@@ -167,6 +177,27 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
             ),
           ],
 
+          if (tool.id == 'mifare_write_block') ...[
+            const SizedBox(height: AppSpacing.xl),
+            _MifareWriteBlockForm(
+              blockController: _mifareBlockController,
+              dataController: _mifareDataController,
+              keyController: _mifareKeyController,
+              keyType: _mifareKeyType,
+              onKeyTypeChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _mifareKeyType = value;
+                });
+              },
+            ),
+          ],
+
+          if (tool.id == 'mifare_clone') ...[
+            const SizedBox(height: AppSpacing.xl),
+            const _MifareCloneInfo(),
+          ],
+
           if (tool.id == 'configure_counter') ...[
             const SizedBox(height: AppSpacing.xl),
             _CounterForm(
@@ -243,6 +274,33 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
         };
       });
       return;
+    }
+
+    if (tool.id == 'mifare_clone') {
+      setState(() {
+        _busy = true;
+        _resultMessage = null;
+      });
+      final result = await _runCloneMifare(session, operations);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _resultMessage = switch (result) {
+          Ok(:final value) => value,
+          Err(:final failure) => l10n.messageFor(failure),
+        };
+      });
+      return;
+    }
+
+    if (tool.id == 'mifare_write_block') {
+      final parsed = _parseMifareBlockInputs();
+      if (parsed case Err(:final failure)) {
+        setState(() {
+          _resultMessage = l10n.messageFor(failure);
+        });
+        return;
+      }
     }
 
     if (tool.id == 'raw_console') {
@@ -478,6 +536,24 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
       case 'make_read_only':
         final result = await operations.makeReadOnly(tag, ack: ack);
         return result.map((_) => 'Etiket kalıcı olarak salt-okunur yapıldı');
+      case 'mifare_write_block':
+        final parsed = _parseMifareBlockInputs();
+        if (parsed case Err(:final failure)) return Err(failure);
+        final inputs =
+            (parsed as Ok<({int block, Uint8List data, Uint8List key})>).value;
+        final result = await operations.writeMifareClassicBlock(
+          tag,
+          blockIndex: inputs.block,
+          data: inputs.data,
+          key: inputs.key,
+          keyType: _mifareKeyType,
+          ack: ack,
+        );
+        return result.map(
+          (_) => inputs.block == 0
+              ? 'Blok 0 (UID) yazıldı'
+              : 'Blok ${inputs.block} yazıldı',
+        );
       case 'raw_console':
         final command = hexToBytes(_rawCommandController.text.trim());
         final result = await operations.sendRawCommand(
@@ -499,29 +575,27 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     NfcSessionService session,
     TagOperations operations,
   ) async {
-    final sourceResult = await session.runOnce<({
-      String uidHex,
-      NdefMessageEntity message,
-    })>(
-      onTag: (sourceTag) async {
-        final readResult = await sourceTag.readNdef();
-        return switch (readResult) {
-          Err(:final failure) => Err(failure),
-          Ok(:final value) when value == null => const Err(
-            TagNotSupported(detail: 'Kaynak etiket NDEF değil'),
-          ),
-          Ok(:final value) => Ok(
-            (
-              uidHex: bytesToHex(sourceTag.uid),
-              message: value!,
-            ),
-          ),
-        };
-      },
-    );
+    final sourceResult = await session
+        .runOnce<({String uidHex, NdefMessageEntity message})>(
+          onTag: (sourceTag) async {
+            final readResult = await sourceTag.readNdef();
+            return switch (readResult) {
+              Err(:final failure) => Err(failure),
+              Ok(:final value) when value == null => const Err(
+                TagNotSupported(detail: 'Kaynak etiket NDEF değil'),
+              ),
+              Ok(:final value) => Ok((
+                uidHex: bytesToHex(sourceTag.uid),
+                message: value!,
+              )),
+            };
+          },
+        );
 
     if (sourceResult case Err(:final failure)) return Err(failure);
-    final sourceData = (sourceResult as Ok<({String uidHex, NdefMessageEntity message})>).value;
+    final sourceData =
+        (sourceResult as Ok<({String uidHex, NdefMessageEntity message})>)
+            .value;
 
     final targetResult = await session.runOnce<String>(
       onTag: (targetTag) async {
@@ -561,6 +635,111 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
       Ok(:final value) => Ok(value),
       Err(:final failure) => Err(failure),
     };
+  }
+
+  /// Magic kart klonlama: önce kaynak Classic kartı tam okunur, sonra
+  /// magic hedef karta blok 0 dahil yazılır (iki ayrı dokunuş).
+  Future<Result<String>> _runCloneMifare(
+    NfcSessionService session,
+    TagOperations operations,
+  ) async {
+    final sourceResult = await session
+        .runOnce<({String uidHex, TagMemory memory})>(
+          onTag: (sourceTag) async {
+            if (sourceTag.mifareClassicInfo == null) {
+              return const Err(
+                TagNotSupported(detail: 'Kaynak etiket MIFARE Classic değil'),
+              );
+            }
+            final memResult = await operations.readMemory(sourceTag);
+            return memResult.map(
+              (memory) =>
+                  (uidHex: bytesToHex(sourceTag.uid), memory: memory),
+            );
+          },
+        );
+
+    if (sourceResult case Err(:final failure)) return Err(failure);
+    final source =
+        (sourceResult as Ok<({String uidHex, TagMemory memory})>).value;
+
+    if (!mounted) return const Err(OperationCancelled());
+
+    return session.runOnce<String>(
+      onTag: (targetTag) async {
+        if (targetTag.mifareClassicInfo == null) {
+          return const Err(
+            TagNotSupported(detail: 'Hedef etiket MIFARE Classic değil'),
+          );
+        }
+        if (!mounted) return const Err(OperationCancelled());
+        final confirmation = await DangerDialog.show(
+          context,
+          title: 'Magic kart klonla',
+          description:
+              'Kaynak kartın tüm blokları (blok 0 dahil) bu karta yazılacak. '
+              'Hedef, blok 0 yazılabilir bir magic (Gen2/CUID) kart olmalı.',
+          risk: RiskLevel.warning,
+          targetUid: formatUid(targetTag.uid),
+        );
+        if (confirmation == null || !confirmation.confirmed) {
+          return const Err(OperationCancelled());
+        }
+
+        final ack = DangerAck.userConfirmed(
+          risk: OperationRisk.config,
+          operationId: 'mifare_clone',
+          targetUidHex: bytesToHex(targetTag.uid),
+          backupTaken: confirmation.takeBackup,
+        );
+
+        final result = await operations.cloneMifareClassicTo(
+          targetTag,
+          source: source.memory,
+          sourceUidHex: source.uidHex,
+          ack: ack,
+        );
+        return result.map(
+          (report) =>
+              'Klon tamamlandı: ${report.blocksWritten} blok yazıldı, '
+              '${report.blocksSkipped} atlandı, ${report.blocksFailed} başarısız.\n'
+              'Blok 0 (UID): ${report.blockZeroWritten ? "yazıldı" : "yazılamadı"}.',
+        );
+      },
+    );
+  }
+
+  /// `mifare_write_block` formundaki blok / veri / anahtar alanlarını çözer.
+  Result<({int block, Uint8List data, Uint8List key})>
+  _parseMifareBlockInputs() {
+    final block = int.tryParse(_mifareBlockController.text.trim());
+    if (block == null || block < 0) {
+      return const Err(InvalidArgument('Blok numarası 0 veya daha büyük olmalı'));
+    }
+
+    final dataText = _mifareDataController.text.trim();
+    if (!isValidHex(dataText)) {
+      return const Err(InvalidArgument('Veri hex değeri geçersiz'));
+    }
+    final data = hexToBytes(dataText);
+    if (data.length != 16) {
+      return const Err(
+        InvalidArgument('Blok verisi tam 16 byte (32 hex karakter) olmalı'),
+      );
+    }
+
+    final keyText = _mifareKeyController.text.trim();
+    if (!isValidHex(keyText)) {
+      return const Err(InvalidArgument('Anahtar hex değeri geçersiz'));
+    }
+    final key = hexToBytes(keyText);
+    if (key.length != 6) {
+      return const Err(
+        InvalidArgument('Anahtar tam 6 byte (12 hex karakter) olmalı'),
+      );
+    }
+
+    return Ok((block: block, data: data, key: key));
   }
 
   Future<void> _loadAvailableDumps() async {
@@ -608,9 +787,7 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
     }
     final bytes = hexToBytes(value);
     if (bytes.length != 4) {
-      return Err(
-        InvalidArgument('$fieldLabel 4 byte (8 hex karakter) olmalı'),
-      );
+      return Err(InvalidArgument('$fieldLabel 4 byte (8 hex karakter) olmalı'));
     }
     return Ok(bytes);
   }
@@ -712,7 +889,9 @@ class _SetPasswordForm extends StatelessWidget {
             value: isDecimal,
             onChanged: onDecimalChanged,
             title: const Text('Ondalık giriş'),
-            subtitle: const Text('Kapalıysa hex, açıksa 0-4294967295 arası sayı girilir.'),
+            subtitle: const Text(
+              'Kapalıysa hex, açıksa 0-4294967295 arası sayı girilir.',
+            ),
           ),
         ],
       ),
@@ -754,7 +933,9 @@ class _RemovePasswordForm extends StatelessWidget {
             value: isDecimal,
             onChanged: onDecimalChanged,
             title: const Text('Ondalık giriş'),
-            subtitle: const Text('Kapalıysa hex, açıksa 0-4294967295 arası sayı girilir.'),
+            subtitle: const Text(
+              'Kapalıysa hex, açıksa 0-4294967295 arası sayı girilir.',
+            ),
           ),
         ],
       ),
@@ -815,7 +996,9 @@ class _RestoreDumpForm extends StatelessWidget {
                   )
                   .toList(growable: false),
               onChanged: onChanged,
-              decoration: const InputDecoration(labelText: 'Geri yüklenecek döküm'),
+              decoration: const InputDecoration(
+                labelText: 'Geri yüklenecek döküm',
+              ),
             ),
         ],
       ),
@@ -843,7 +1026,10 @@ class _MirrorForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('UID / sayaç yansıtma', style: Theme.of(context).textTheme.titleSmall),
+          Text(
+            'UID / sayaç yansıtma',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
           const SizedBox(height: AppSpacing.md),
           DropdownButtonFormField<MirrorMode>(
             initialValue: mode,
@@ -924,6 +1110,115 @@ class _CounterForm extends StatelessWidget {
             value: passwordProtected,
             onChanged: onPasswordProtectedChanged,
             title: const Text('Sayaç şifre korumalı'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MifareWriteBlockForm extends StatelessWidget {
+  const _MifareWriteBlockForm({
+    required this.blockController,
+    required this.dataController,
+    required this.keyController,
+    required this.keyType,
+    required this.onKeyTypeChanged,
+  });
+
+  final TextEditingController blockController;
+  final TextEditingController dataController;
+  final TextEditingController keyController;
+  final MifareKeyType keyType;
+  final ValueChanged<MifareKeyType?> onKeyTypeChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'MIFARE Classic blok yazma',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'Blok 0, kartın UID/üretici bloğudur; yalnızca magic '
+            '(Gen2/CUID) kartlarda yazılabilir. Blok 0 için BCC (5. byte) '
+            'otomatik doğrulanır — hatalıysa yazma reddedilir.',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: blockController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Blok numarası',
+              hintText: '0',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: dataController,
+            decoration: const InputDecoration(
+              labelText: 'Veri (16 byte / 32 hex)',
+              hintText: '04A1B2C3D4080400...',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: keyController,
+            decoration: const InputDecoration(
+              labelText: 'Sektör anahtarı (6 byte)',
+              hintText: 'FFFFFFFFFFFF',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<MifareKeyType>(
+            initialValue: keyType,
+            onChanged: onKeyTypeChanged,
+            items: const [
+              DropdownMenuItem(
+                value: MifareKeyType.keyA,
+                child: Text('Anahtar A'),
+              ),
+              DropdownMenuItem(
+                value: MifareKeyType.keyB,
+                child: Text('Anahtar B'),
+              ),
+            ],
+            decoration: const InputDecoration(labelText: 'Anahtar tipi'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MifareCloneInfo extends StatelessWidget {
+  const _MifareCloneInfo();
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'İki aşamalı klonlama',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            '1) Önce kaynak kartı okutun (varsayılan anahtarlarla tam döküm).\n'
+            '2) Sonra magic (Gen2/CUID) hedef kartı okutun; blok 0 dahil tüm '
+            'veri blokları yazılır. Sektör fragmanları (anahtar/erişim '
+            'byte\'ları) güvenlik için yazılmaz.\n\n'
+            'Hedef standart bir kartsa blok 0 yazılamaz ve işlem reddedilir. '
+            'Kaynağın anahtarları varsayılan değilse okunamayan bloklar '
+            'atlanır.',
           ),
         ],
       ),

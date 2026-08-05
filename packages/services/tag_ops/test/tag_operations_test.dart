@@ -1,9 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:nfc_core/nfc_core.dart';
 import 'package:nfc_core/testing.dart';
 import 'package:shared_utils/shared_utils.dart';
+import 'package:tag_ops/src/ecc/ecdsa.dart';
+import 'package:tag_ops/src/ecc/secp128r1.dart';
+import 'package:tag_ops/src/iso15693_system_info.dart';
+import 'package:tag_ops/src/mifare_classic_layout.dart';
 import 'package:tag_ops/tag_ops.dart';
 import 'package:test/test.dart';
-import 'dart:typed_data';
 
 /// NTAG213'un gercek `GET_VERSION` cevabi.
 final _ntag213Version = hexToBytes('0004040201000F03');
@@ -24,7 +29,10 @@ FakeTagHandle _ntag213WithPages({
 }) => FakeTagHandle(
   uid: hexToBytes('04A1B2C3D4E580'),
   rules: [
-    FakeTransceiveRule(commandHex: '60', response: hexToBytes('0004040201000F03')),
+    FakeTransceiveRule(
+      commandHex: '60',
+      response: hexToBytes('0004040201000F03'),
+    ),
   ],
   ndefMessage: ndefMessage,
   pages: {
@@ -310,9 +318,7 @@ void main() {
 
   group('Sifre ve bicimlendirme', () {
     test('copyNdefTo hedefe NDEF yazar ve raporlar', () async {
-      final target = FakeTagHandle(
-        uid: hexToBytes('04B1B2C3D4E581'),
-      );
+      final target = FakeTagHandle(uid: hexToBytes('04B1B2C3D4E581'));
       final ack = DangerAck.forTest(targetUidHex: bytesToHex(target.uid));
       final message = NdefMessageEntity([
         NdefRecordEntity(
@@ -357,7 +363,10 @@ void main() {
       expect(tag.writtenPages.length, 36);
       expect(tag.writtenPages.first.page, 0x04);
       expect(tag.writtenPages.last.page, 0x27);
-      expect(tag.writtenPages.every((entry) => entry.data.every((b) => b == 0)), isTrue);
+      expect(
+        tag.writtenPages.every((entry) => entry.data.every((b) => b == 0)),
+        isTrue,
+      );
       expect(tag.lastWrittenNdef?.isEmpty, isTrue);
     });
 
@@ -517,5 +526,419 @@ void main() {
   test('ornek surum dizileri gecerli', () {
     expect(_ntag213Version.length, 8);
     expect(_ntag215Version.length, 8);
+  });
+
+  group('ISO 15693 tanimlama (ICODE SLIX/SLIX2)', () {
+    FakeTagHandle isoTag({int? icReference}) {
+      final uid = hexToBytes('E004010203040506');
+      final command = Iso15693Commands.getSystemInformation(uid: uid);
+      final rules = <FakeTransceiveRule>[];
+      if (icReference != null) {
+        final response = Uint8List.fromList([
+          0x00, 0x0F, // yanit bayragi, bilgi bayraklari (hepsi mevcut)
+          ...uid,
+          0x00, 0x00, // DSFID, AFI
+          0x1A, 0x03, // bellek boyutu: 27 blok, blok basina 4 byte
+          icReference,
+        ]);
+        rules.add(
+          FakeTransceiveRule(commandHex: bytesToHex(command), response: response),
+        );
+      }
+      return FakeTagHandle(
+        uid: uid,
+        technologies: const [TagTechnology.nfcV],
+        supportedChannels: const {TransceiveChannel.nfcV},
+        ndefCapabilities: null,
+        rules: rules,
+      );
+    }
+
+    test('ICODE SLIX IC referansindan tanimlanir', () async {
+      final result = await operations.identify(
+        isoTag(icReference: IcodeIcReference.slix),
+      );
+      final identity = (result as Ok<TagIdentity>).value;
+
+      expect(identity.family, TagChipFamily.icodeSlix);
+      expect(identity.displayName, 'ICODE SLIX');
+      expect(identity.totalBytes, 108);
+      expect(identity.totalPages, 27);
+      expect(identity.pageSize, 4);
+    });
+
+    test('ICODE SLIX2 IC referansindan tanimlanir', () async {
+      final result = await operations.identify(
+        isoTag(icReference: IcodeIcReference.slix2),
+      );
+      final identity = (result as Ok<TagIdentity>).value;
+
+      expect(identity.family, TagChipFamily.icodeSlix2);
+      expect(identity.displayName, 'ICODE SLIX2');
+    });
+
+    test('sistem bilgisi okunamazsa jenerik kimlik doner', () async {
+      final result = await operations.identify(isoTag());
+      final identity = (result as Ok<TagIdentity>).value;
+
+      expect(identity.family, TagChipFamily.icodeSlix);
+      expect(identity.displayName, 'ISO 15693 etiketi');
+      expect(identity.totalBytes, isNull);
+    });
+  });
+
+  group('MIFARE Classic bellek dokumu', () {
+    FakeTagHandle classicTag({
+      Set<Uint8List>? validSectorKeys,
+      Map<int, Uint8List> pages = const {},
+    }) => FakeTagHandle(
+      uid: hexToBytes('04A1B2C3D4E580'),
+      technologies: const [TagTechnology.nfcA, TagTechnology.mifareClassic],
+      ndefCapabilities: null,
+      mifareClassicInfo: const MifareClassicInfo(
+        sectorCount: 16,
+        blockCount: 64,
+        sizeInBytes: 1024,
+      ),
+      validSectorKeys: validSectorKeys,
+      pages: pages,
+    );
+
+    test('varsayilan anahtarla tum bloklar okunur', () async {
+      final tag = classicTag(
+        validSectorKeys: {hexToBytes('FFFFFFFFFFFF')},
+        pages: {0: hexToBytes('00112233445566778899AABBCCDDEEFF')},
+      );
+
+      final result = await operations.readMemory(tag);
+
+      expect(result, isA<Ok<TagMemory>>());
+      final memory = (result as Ok<TagMemory>).value;
+      expect(memory.pageSize, 16);
+      expect(memory.pageCount, 64);
+      expect(memory.unreadablePages, isEmpty);
+      expect(bytesToHex(memory.page(0)!), '00112233445566778899AABBCCDDEEFF');
+    });
+
+    test('anahtar bulunamayan sektorun bloklari okunamaz isaretlenir', () async {
+      final tag = classicTag();
+
+      final result = await operations.readMemory(tag);
+
+      final memory = (result as Ok<TagMemory>).value;
+      expect(memory.unreadablePages.length, 64);
+    });
+  });
+
+  group('MIFARE Classic anahtar taramasi', () {
+    test('sozlukteki anahtar tum sektorlerde bulunur', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        ndefCapabilities: null,
+        mifareClassicInfo: const MifareClassicInfo(
+          sectorCount: 16,
+          blockCount: 64,
+          sizeInBytes: 1024,
+        ),
+        validSectorKeys: {hexToBytes('D3F7D3F7D3F7')},
+      );
+
+      final result = await operations.scanMifareClassicKeys(tag);
+
+      expect(result, isA<Ok<MifareKeyScanReport>>());
+      final report = (result as Ok<MifareKeyScanReport>).value;
+      expect(report.allUnlocked, isTrue);
+      expect(report.sectorKeys[0]!.type, MifareKeyType.keyA);
+      expect(bytesToHex(report.sectorKeys[0]!.key), 'D3F7D3F7D3F7');
+    });
+
+    test('sozluk disi anahtarli sektor kilitli kalir', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        ndefCapabilities: null,
+        mifareClassicInfo: const MifareClassicInfo(
+          sectorCount: 16,
+          blockCount: 64,
+          sizeInBytes: 1024,
+        ),
+      );
+
+      final result = await operations.scanMifareClassicKeys(tag);
+
+      final report = (result as Ok<MifareKeyScanReport>).value;
+      expect(report.unlockedCount, 0);
+      expect(report.totalSectors, 16);
+    });
+  });
+
+  group('MifareClassicLayout', () {
+    test('1K: her sektor 4 blok', () {
+      expect(
+        MifareClassicLayout.blocksInSector(0, sectorCount: 16),
+        4,
+      );
+      expect(
+        MifareClassicLayout.trailerBlockOfSector(15, sectorCount: 16),
+        63,
+      );
+      expect(MifareClassicLayout.sectorOfBlock(7, sectorCount: 16), 1);
+    });
+
+    test('4K: son sektorler 16 blok', () {
+      expect(
+        MifareClassicLayout.firstBlockOfSector(32, sectorCount: 40),
+        128,
+      );
+      expect(
+        MifareClassicLayout.blocksInSector(32, sectorCount: 40),
+        16,
+      );
+      expect(
+        MifareClassicLayout.trailerBlockOfSector(39, sectorCount: 40),
+        255,
+      );
+      expect(MifareClassicLayout.sectorOfBlock(200, sectorCount: 40), 36);
+    });
+
+    test('blok 0 BCC = UID byte XOR', () {
+      // 04 ^ A1 ^ B2 ^ C3 = D4
+      expect(
+        MifareClassicLayout.blockZeroBcc(hexToBytes('04A1B2C3')),
+        0xD4,
+      );
+    });
+
+    test('dogru BCC gecerli, yanlis BCC gecersiz', () {
+      expect(
+        MifareClassicLayout.isBlockZeroBccValid(
+          hexToBytes('04A1B2C3D40804000011223344556677'),
+        ),
+        isTrue,
+      );
+      expect(
+        MifareClassicLayout.isBlockZeroBccValid(
+          hexToBytes('04A1B2C3000804000011223344556677'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('withBlockZeroBcc 5. byte i duzeltir, kaynagi bozmaz', () {
+      final source = hexToBytes('04A1B2C3000804000011223344556677');
+      final fixed = MifareClassicLayout.withBlockZeroBcc(source);
+      expect(fixed[4], 0xD4);
+      expect(MifareClassicLayout.isBlockZeroBccValid(fixed), isTrue);
+      // Kaynak degismedi.
+      expect(source[4], 0x00);
+    });
+  });
+
+  group('MIFARE Classic magic / blok 0', () {
+    const validBlock0 = '04A1B2C3D40804000011223344556677';
+
+    FakeTagHandle classicTag({
+      Set<Uint8List>? validSectorKeys = const {},
+      Map<int, Uint8List>? pages,
+      Set<int>? readOnlyClassicBlocks,
+    }) => FakeTagHandle(
+      uid: hexToBytes('04A1B2C3D4E580'),
+      technologies: const [TagTechnology.nfcA, TagTechnology.mifareClassic],
+      ndefCapabilities: null,
+      supportedChannels: const {TransceiveChannel.mifareClassic},
+      mifareClassicInfo: const MifareClassicInfo(
+        sectorCount: 16,
+        blockCount: 64,
+        sizeInBytes: 1024,
+      ),
+      validSectorKeys: validSectorKeys?.isEmpty ?? true
+          ? {hexToBytes('FFFFFFFFFFFF')}
+          : validSectorKeys,
+      pages: pages ?? {0: hexToBytes(validBlock0)},
+      readOnlyClassicBlocks: readOnlyClassicBlocks,
+    );
+
+    DangerAck ackFor(FakeTagHandle tag) =>
+        DangerAck.forTest(targetUidHex: bytesToHex(tag.uid));
+
+    test('probe: yazilabilir blok 0 -> Gen2', () async {
+      final tag = classicTag();
+      final result = await operations.probeMifareMagic(tag);
+      final probe = (result as Ok<MifareMagicProbe>).value;
+      expect(probe.isBlockZeroWritable, isTrue);
+      expect(probe.kind, MifareMagicKind.gen2);
+    });
+
+    test('probe: blok 0 salt-okunur -> standart kart', () async {
+      final tag = classicTag(readOnlyClassicBlocks: {0});
+      final result = await operations.probeMifareMagic(tag);
+      final probe = (result as Ok<MifareMagicProbe>).value;
+      expect(probe.isBlockZeroWritable, isFalse);
+      expect(probe.kind, MifareMagicKind.none);
+    });
+
+    test('probe: sektor 0 anahtari yoksa -> unknown', () async {
+      final tag = classicTag(validSectorKeys: {hexToBytes('A0A1A2A3A4A6')});
+      final result = await operations.probeMifareMagic(tag);
+      final probe = (result as Ok<MifareMagicProbe>).value;
+      expect(probe.isBlockZeroWritable, isFalse);
+      expect(probe.kind, MifareMagicKind.unknown);
+    });
+
+    test('probe: Classic olmayan etiket -> TagNotSupported', () async {
+      final tag = FakeTagHandle(uid: hexToBytes('04A1B2C3D4E580'));
+      final result = await operations.probeMifareMagic(tag);
+      expect(result, isA<Err<MifareMagicProbe>>());
+      expect((result as Err).failure, isA<TagNotSupported>());
+    });
+
+    test('blok 0 yazma: gecerli BCC yazilir ve dogrulanir', () async {
+      final tag = classicTag();
+      final result = await operations.writeMifareClassicBlock(
+        tag,
+        blockIndex: 0,
+        data: hexToBytes(validBlock0),
+        key: hexToBytes('FFFFFFFFFFFF'),
+        keyType: MifareKeyType.keyA,
+        ack: ackFor(tag),
+      );
+      expect(result, isA<Ok<void>>());
+      expect(
+        bytesToHex(tag.writtenClassicBlocks.last.data),
+        validBlock0,
+      );
+    });
+
+    test('blok 0 yazma: hatali BCC reddedilir', () async {
+      final tag = classicTag();
+      final result = await operations.writeMifareClassicBlock(
+        tag,
+        blockIndex: 0,
+        data: hexToBytes('04A1B2C3000804000011223344556677'),
+        key: hexToBytes('FFFFFFFFFFFF'),
+        keyType: MifareKeyType.keyA,
+        ack: ackFor(tag),
+      );
+      expect(result, isA<Err<void>>());
+      expect((result as Err).failure, isA<InvalidArgument>());
+      expect(tag.writtenClassicBlocks, isEmpty);
+    });
+
+    test('blok yazma: yanlis anahtar -> AuthenticationFailed', () async {
+      final tag = classicTag();
+      final result = await operations.writeMifareClassicBlock(
+        tag,
+        blockIndex: 1,
+        data: Uint8List(16),
+        key: hexToBytes('A0A1A2A3A4A6'),
+        ack: ackFor(tag),
+      );
+      expect((result as Err).failure, isA<AuthenticationFailed>());
+    });
+
+    test('blok yazma: onay baska etiket icinse reddedilir', () async {
+      final tag = classicTag();
+      final result = await operations.writeMifareClassicBlock(
+        tag,
+        blockIndex: 1,
+        data: Uint8List(16),
+        key: hexToBytes('FFFFFFFFFFFF'),
+        ack: DangerAck.forTest(targetUidHex: 'DEADBEEF'),
+      );
+      expect((result as Err).failure, isA<InvalidArgument>());
+    });
+
+    test('klon: veri bloklari + blok 0 yazilir, fragmanlar atlanir', () async {
+      final target = classicTag(pages: {});
+      final bytes = Uint8List(1024);
+      bytes.setRange(0, 16, hexToBytes(validBlock0));
+      final source = TagMemory(bytes: bytes, pageSize: 16);
+
+      final result = await operations.cloneMifareClassicTo(
+        target,
+        source: source,
+        sourceUidHex: 'AABBCCDD',
+        ack: ackFor(target),
+      );
+
+      final report = (result as Ok<MifareCloneReport>).value;
+      // 16 sektor x 3 veri blogu = 48 yazildi, 16 fragman atlandi.
+      expect(report.blocksWritten, 48);
+      expect(report.blocksSkipped, 16);
+      expect(report.blocksFailed, 0);
+      expect(report.blockZeroWritten, isTrue);
+      expect(report.trailersWritten, isFalse);
+      // Blok 0'a en son yazilan veri kaynak blok 0'dir.
+      final blockZeroWrites =
+          target.writtenClassicBlocks.where((w) => w.block == 0).toList();
+      expect(bytesToHex(blockZeroWrites.last.data), validBlock0);
+    });
+
+    test('klon: hedef blok 0 yazamiyorsa TagNotSupported', () async {
+      final target = classicTag(pages: {}, readOnlyClassicBlocks: {0});
+      final source = TagMemory(bytes: Uint8List(1024), pageSize: 16);
+      final result = await operations.cloneMifareClassicTo(
+        target,
+        source: source,
+        sourceUidHex: 'AABBCCDD',
+        ack: ackFor(target),
+      );
+      expect((result as Err).failure, isA<TagNotSupported>());
+    });
+  });
+
+  group('ECC secp128r1 / ECDSA', () {
+    test('uretici nokta mertebesi dogru: n * G = sonsuzluk', () {
+      final result = Secp128r1.multiply(Secp128r1.n, Secp128r1.g);
+      expect(result.isInfinity, isTrue);
+    });
+
+    test('imzalama/dogrulama round-trip gecerli imzayi kabul eder', () {
+      final d =
+          BigInt.parse('123456789ABCDEF0123456789ABCDEF0', radix: 16) %
+              (Secp128r1.n - BigInt.one) +
+          BigInt.one;
+      final publicKey = Secp128r1.multiply(d, Secp128r1.g);
+
+      final k =
+          BigInt.parse('FEDCBA9876543210FEDCBA9876543210', radix: 16) %
+              (Secp128r1.n - BigInt.one) +
+          BigInt.one;
+      final message = BigInt.parse('04A1B2C3D4E580', radix: 16);
+
+      final r = Secp128r1.multiply(k, Secp128r1.g).x! % Secp128r1.n;
+      final s =
+          (k.modInverse(Secp128r1.n) * (message + r * d)) % Secp128r1.n;
+
+      expect(
+        Ecdsa.verify(message: message, r: r, s: s, publicKey: publicKey),
+        isTrue,
+      );
+      expect(
+        Ecdsa.verify(
+          message: message + BigInt.one,
+          r: r,
+          s: s,
+          publicKey: publicKey,
+        ),
+        isFalse,
+      );
+    });
+
+    test('verifySignature icin NXP anahtari henuz ayarlanmadi', () async {
+      final tag = FakeTagHandle(
+        uid: hexToBytes('04A1B2C3D4E580'),
+        rules: [
+          FakeTransceiveRule(
+            commandHex: '3C00',
+            response: Uint8List(32),
+          ),
+        ],
+      );
+
+      final result = await operations.verifySignature(tag);
+
+      expect(result, isA<Err<bool>>());
+      expect((result as Err<bool>).failure, isA<TagNotSupported>());
+    });
   });
 }
