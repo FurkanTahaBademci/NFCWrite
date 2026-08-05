@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nfc_core/nfc_core.dart';
 import 'package:shared_utils/shared_utils.dart';
@@ -100,6 +102,7 @@ final class ReadController extends Notifier<ReadState> {
         ndefByteLength: info.currentNdefSize,
         maxNdefSize: info.maxNdefSize,
         wasWritable: info.isWritable,
+        rawJson: _encodeNdefMessage(info.ndefMessage),
       ),
     );
     if (result case Err(:final failure)) {
@@ -118,6 +121,24 @@ final class ReadController extends Notifier<ReadState> {
               '(${record.payload.length} byte)',
         )
         .toList(growable: false);
+  }
+
+  /// Ham NDEF kayitlarini JSON'a cevirir — gecmisten yazma ekranina
+  /// yuklerken geri cozumlemek icin (bkz. `HistoryRepository`, T2.31).
+  String? _encodeNdefMessage(NdefMessageEntity? message) {
+    if (message == null || message.records.isEmpty) return null;
+    return jsonEncode(<String, Object?>{
+      'records': message.records
+          .map(
+            (record) => <String, Object?>{
+              'tnf': record.typeNameFormat.value,
+              'type': bytesToHex(record.type),
+              'id': bytesToHex(record.identifier),
+              'payload': bytesToHex(record.payload),
+            },
+          )
+          .toList(growable: false),
+    });
   }
 }
 

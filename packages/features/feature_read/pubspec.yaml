@@ -17,7 +17,9 @@ dependencies:
   localization: ^0.1.0
   ndef_codec: ^0.1.0
   nfc_core: ^0.1.0
+  share_plus: ^11.0.0
   shared_utils: ^0.1.0
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

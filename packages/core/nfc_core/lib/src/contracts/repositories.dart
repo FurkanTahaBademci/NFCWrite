@@ -28,6 +28,17 @@ abstract interface class HistoryRepository {
   /// Toplam kayit sayisi.
   Future<Result<int>> count();
 
+  /// Tum gecmisi tek bir JSON dosyasina yazar ve dosya yolunu dondurur.
+  Future<Result<String>> exportAllToFile();
+
+  /// Daha once [exportAllToFile] ile uretilmis dosyalarin yollarini,
+  /// en yeniden eskiye, dondurur.
+  Future<Result<List<String>>> listExportedFiles();
+
+  /// [path] dosyasindaki kayitlari gecmise ekler. Eklenen kayit sayisini
+  /// dondurur.
+  Future<Result<int>> importAllFromFile(String path);
+
   /// Gecmis degistikce yayin yapar — liste ekrani bunu dinler.
   Stream<void> get changes;
 }

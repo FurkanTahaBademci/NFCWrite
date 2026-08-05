@@ -5,6 +5,8 @@ import 'package:ndef_codec/ndef_codec.dart';
 import 'package:nfc_core/nfc_core.dart';
 import 'package:shared_utils/shared_utils.dart';
 
+import 'record_content_actions.dart';
+
 /// Okunan etiketin detay gorunumu — sekmeli.
 class TagInfoView extends StatelessWidget {
   const TagInfoView({required this.info, super.key});
@@ -116,6 +118,12 @@ class _IdentityTab extends StatelessWidget {
           label: l10n.readUidReversed,
           value: reverseUidHex(info.uid),
           icon: Icons.swap_horiz,
+          monospace: true,
+        ),
+        InfoRow(
+          label: l10n.readUidDecimal,
+          value: formatUidDecimal(info.uid),
+          icon: Icons.pin_outlined,
           monospace: true,
         ),
         InfoRow(
@@ -252,6 +260,7 @@ class _RecordCard extends StatelessWidget {
             value: bytesToHex(record.payload, separator: ' '),
             monospace: true,
           ),
+          RecordContentActions(content: content),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,

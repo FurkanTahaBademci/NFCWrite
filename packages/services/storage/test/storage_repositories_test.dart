@@ -72,6 +72,37 @@ void main() {
       expect(count, const Ok<int>(1));
     });
 
+    test('history exportAllToFile/listExportedFiles/importAllFromFile work',
+        () async {
+      await historyRepository.add(
+        ScanRecord(
+          id: null,
+          uidHex: '04AABBCCDD',
+          scannedAt: DateTime.now(),
+          chipFamily: TagChipFamily.ntag213,
+          chipDisplayName: 'NTAG213',
+          recordSummaries: const ['wellKnown: T (5 byte)'],
+        ),
+      );
+
+      final exportResult = await historyRepository.exportAllToFile();
+      expect(exportResult, isA<Ok<String>>());
+      final exportPath = (exportResult as Ok<String>).value;
+      expect(File(exportPath).existsSync(), isTrue);
+
+      final listResult = await historyRepository.listExportedFiles();
+      expect(listResult, isA<Ok<List<String>>>());
+      expect((listResult as Ok<List<String>>).value, contains(exportPath));
+
+      final importResult = await historyRepository.importAllFromFile(
+        exportPath,
+      );
+      expect(importResult, const Ok<int>(1));
+
+      final count = await historyRepository.count();
+      expect(count, const Ok<int>(2));
+    });
+
     test('dump add/export/import cycle works', () async {
       final addResult = await dumpRepository.add(
         TagDump(

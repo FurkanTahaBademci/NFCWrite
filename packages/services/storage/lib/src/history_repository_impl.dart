@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:nfc_core/nfc_core.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_utils/shared_utils.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -226,8 +228,127 @@ final class HistoryRepositoryImpl implements HistoryRepository {
     }
   }
 
+  @override
+  Future<Result<String>> exportAllToFile() async {
+    try {
+      final allResult = await query(const HistoryQuery(limit: 1000000));
+      if (allResult case Err(:final failure)) return Err(failure);
+      final records = (allResult as Ok<List<ScanRecord>>).value;
+
+      final payload = <String, Object?>{
+        'records': records.map(_toExportMap).toList(growable: false),
+      };
+
+      final exportDirectory = await _ensureExportDirectory();
+      final fileName = 'history_${DateTime.now().millisecondsSinceEpoch}.json';
+      final filePath = p.join(exportDirectory.path, fileName);
+      final file = File(filePath);
+      await file.writeAsString(jsonEncode(payload), flush: true);
+
+      return Ok(file.path);
+    } on Object catch (e, s) {
+      _log.error('Gecmis disa aktarilamadi', e, s);
+      return Err(StorageError('Gecmis disa aktarilamadi', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<String>>> listExportedFiles() async {
+    try {
+      final directory = await _ensureExportDirectory();
+      final files =
+          directory
+              .listSync()
+              .whereType<File>()
+              .where((file) => p.extension(file.path) == '.json')
+              .map((file) => file.path)
+              .toList(growable: false)
+            ..sort((a, b) => b.compareTo(a));
+      return Ok(files);
+    } on Object catch (e, s) {
+      _log.error('Disa aktarilan dosyalar listelenemedi', e, s);
+      return Err(StorageError('Disa aktarilan dosyalar listelenemedi', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<int>> importAllFromFile(String path) async {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) {
+        return const Err(StorageError('Dosya bulunamadi'));
+      }
+
+      final raw = jsonDecode(await file.readAsString());
+      if (raw is! Map<String, Object?> || raw['records'] is! List) {
+        return const Err(StorageError('Gecersiz JSON gecmis formati'));
+      }
+
+      var imported = 0;
+      for (final item in raw['records']! as List) {
+        if (item is! Map) continue;
+        final record = _fromExportMap(item.cast<String, Object?>());
+        final result = await add(record);
+        if (result case Ok()) imported++;
+      }
+      return Ok(imported);
+    } on Object catch (e, s) {
+      _log.error('Gecmis ice aktarilamadi', e, s);
+      return Err(StorageError('Gecmis ice aktarilamadi', cause: e));
+    }
+  }
+
   /// Kaynaklari birakir. Uygulama kapanirken cagrilir.
   Future<void> dispose() => _changes.close();
+
+  Future<Directory> _ensureExportDirectory() async {
+    final root = Directory(p.join(p.dirname(_db.path), 'history_exports'));
+    if (root.existsSync()) return root;
+    root.createSync(recursive: true);
+    return root;
+  }
+
+  Map<String, Object?> _toExportMap(ScanRecord record) => <String, Object?>{
+    'uidHex': record.uidHex,
+    'scannedAtMs': record.scannedAt.millisecondsSinceEpoch,
+    'chipFamily': record.chipFamily.name,
+    'alias': record.alias,
+    'chipDisplayName': record.chipDisplayName,
+    'technologies': record.technologies,
+    'recordSummaries': record.recordSummaries,
+    'ndefByteLength': record.ndefByteLength,
+    'maxNdefSize': record.maxNdefSize,
+    'wasWritable': record.wasWritable,
+    'rawJson': record.rawJson,
+  };
+
+  ScanRecord _fromExportMap(Map<String, Object?> map) {
+    final scannedAtMs = map['scannedAtMs'];
+    return ScanRecord(
+      id: null,
+      uidHex: (map['uidHex'] as String?) ?? 'UNKNOWN',
+      scannedAt: scannedAtMs is int
+          ? DateTime.fromMillisecondsSinceEpoch(scannedAtMs)
+          : DateTime.now(),
+      chipFamily: _chipFamilyFromName(map['chipFamily'] as String?),
+      alias: map['alias'] as String?,
+      chipDisplayName: map['chipDisplayName'] as String?,
+      technologies:
+          (map['technologies'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const [],
+      recordSummaries:
+          (map['recordSummaries'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const [],
+      ndefByteLength: map['ndefByteLength'] as int?,
+      maxNdefSize: map['maxNdefSize'] as int?,
+      wasWritable: map['wasWritable'] as bool?,
+      rawJson: map['rawJson'] as String?,
+    );
+  }
 
   Future<String?> _readAlias(String uidHex) async {
     final rows = await _db.query(

@@ -105,6 +105,18 @@ final class InMemoryHistoryRepository implements HistoryRepository {
 
   @override
   Future<Result<int>> count() async => Ok(_records.length);
+
+  @override
+  Future<Result<String>> exportAllToFile() async =>
+      const Err(NotImplementedYet('T1.2'));
+
+  @override
+  Future<Result<List<String>>> listExportedFiles() async =>
+      const Err(NotImplementedYet('T1.2'));
+
+  @override
+  Future<Result<int>> importAllFromFile(String path) async =>
+      const Err(NotImplementedYet('T1.2'));
 }
 
 /// Bellekte tutulan dokum arsivi.

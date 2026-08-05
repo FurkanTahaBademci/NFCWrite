@@ -4,8 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:localization/localization.dart';
 import 'package:nfc_core/nfc_core.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_utils/shared_utils.dart';
 
+import '../../application/continuous_read_controller.dart';
 import '../../application/read_controller.dart';
+import '../../domain/tag_info_json.dart';
 import '../widgets/tag_info_view.dart';
 
 /// Okuma sekmesi.
@@ -54,11 +58,22 @@ class _ReadPageState extends ConsumerState<ReadPage> {
       appBar: AppBar(
         title: Text(l10n.tabRead),
         actions: [
-          if (state is ReadSuccess)
+          if (state is ReadSuccess) ...[
+            IconButton(
+              icon: const Icon(Icons.share_outlined),
+              tooltip: l10n.readShareJson,
+              onPressed: () => _shareJson(state.info),
+            ),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: l10n.actionScan,
               onPressed: () => ref.read(readControllerProvider.notifier).scan(),
+            ),
+          ] else
+            IconButton(
+              icon: const Icon(Icons.repeat),
+              tooltip: l10n.readContinuousStart,
+              onPressed: _openContinuousSheet,
             ),
         ],
       ),
@@ -101,6 +116,96 @@ class _ReadPageState extends ConsumerState<ReadPage> {
         },
       ),
     );
+  }
+
+  Future<void> _shareJson(NfcTagInfo info) async {
+    final l10n = AppLocalizations.of(context);
+    await SharePlus.instance.share(
+      ShareParams(text: tagInfoToJsonString(info), subject: l10n.readShareResult),
+    );
+  }
+
+  void _openContinuousSheet() {
+    ref.read(continuousReadControllerProvider.notifier).start();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final l10n = AppLocalizations.of(context);
+          final state = ref.watch(continuousReadControllerProvider);
+          final results = switch (state) {
+            ContinuousReadActive(:final results) => results,
+            ContinuousReadFailure(:final results) => results,
+            ContinuousReadIdle() => const <NfcTagInfo>[],
+          };
+
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.6,
+            builder: (context, scrollController) => SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.readContinuousCount(results.length),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            await ref
+                                .read(continuousReadControllerProvider.notifier)
+                                .stop();
+                            if (context.mounted) Navigator.of(context).pop();
+                          },
+                          child: Text(l10n.actionDone),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: results.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppSpacing.xl),
+                              child: Text(
+                                l10n.readContinuousHint,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            itemCount: results.length,
+                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final info = results[index];
+                              return ListTile(
+                                leading: const Icon(Icons.nfc),
+                                title: Text(
+                                  info.identity.displayName ??
+                                      info.identity.family.name,
+                                ),
+                                subtitle: Text(formatUid(info.uid)),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ).whenComplete(() {
+      ref.read(continuousReadControllerProvider.notifier).stop();
+    });
   }
 
   void _showFailure(NfcFailure failure) {

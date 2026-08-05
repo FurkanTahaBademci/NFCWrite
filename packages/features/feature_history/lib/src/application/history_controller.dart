@@ -60,3 +60,45 @@ final FutureProvider<List<ScanRecord>> historyListProvider =
         Err(:final failure) => throw StateError(failure.toString()),
       };
     });
+
+/// Arama terimine gore (yonga filtresi haric) gecmiste bulunan yonga
+/// aileleri — filtre cip'lerini doldurmak icin.
+final FutureProvider<List<TagChipFamily>> historyAvailableFamiliesProvider =
+    FutureProvider<List<TagChipFamily>>((ref) async {
+      final repository = ref.watch(historyRepositoryProvider);
+      final query = ref.watch(historyQueryProvider);
+
+      final subscription = repository.changes.listen((_) {
+        ref.invalidateSelf();
+      });
+      ref.onDispose(subscription.cancel);
+
+      final result = await repository.query(
+        HistoryQuery(searchTerm: query.searchTerm, limit: 1000),
+      );
+      return switch (result) {
+        Ok(:final value) =>
+          value.map((record) => record.chipFamily).toSet().toList()
+            ..sort((a, b) => a.name.compareTo(b.name)),
+        Err() => const <TagChipFamily>[],
+      };
+    });
+
+/// Kayitli bellek dokumleri (dokum arsivi sekmesi).
+///
+/// Depo degistikce kendini yeniler.
+final FutureProvider<List<TagDump>> dumpListProvider =
+    FutureProvider<List<TagDump>>((ref) async {
+      final repository = ref.watch(dumpRepositoryProvider);
+
+      final subscription = repository.changes.listen((_) {
+        ref.invalidateSelf();
+      });
+      ref.onDispose(subscription.cancel);
+
+      final result = await repository.listAll(limit: 200);
+      return switch (result) {
+        Ok(:final value) => value,
+        Err(:final failure) => throw StateError(failure.toString()),
+      };
+    });
