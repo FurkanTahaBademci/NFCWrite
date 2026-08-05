@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Kişi Kartı</title>
+<!--
+  NFC Toolkit — vCard çözücü sayfa.
+
+  NFC kartındaki URI kaydı bu sayfaya işaret eder:
+    https://furkantahabademci.github.io/NFCWrite/v/#<base64url(vCard)>
+
+  Kişi verisi yalnızca URL fragment'ında (#) taşınır; fragment tarayıcı
+  tarafından sunucuya GÖNDERİLMEZ. Bu sayfa veriyi tamamen istemci
+  tarafında çözer ve .vcf indirmesi sunar. Hiçbir dış kaynak yüklenmez,
+  hiçbir veri hiçbir yere gönderilmez.
+
+  DİKKAT: Bu sayfanın adresi fiziksel kartlara kalıcı yazılıyor.
+  Taşırsan/silersen sahadaki kartlar kırılır.
+-->
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1a1c1f; --muted: #5c626b;
+    --accent: #0a7d4f; --accent-text: #ffffff; --line: #e3e5e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131518; --card: #1e2126; --text: #eceef0; --muted: #9aa1aa;
+      --accent: #2fbf83; --accent-text: #0b2818; --line: #2c3036;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 1.25rem;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 1.25rem; padding: 2rem 1.5rem;
+    width: 100%; max-width: 26rem; text-align: center;
+    box-shadow: 0 8px 30px rgba(0,0,0,.08);
+  }
+  .avatar {
+    width: 4.5rem; height: 4.5rem; border-radius: 50%;
+    background: var(--accent); color: var(--accent-text);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.75rem; font-weight: 700; margin-bottom: 1rem;
+  }
+  h1 { font-size: 1.35rem; margin-bottom: .25rem; overflow-wrap: anywhere; }
+  .sub { color: var(--muted); font-size: .95rem; margin-bottom: 1.25rem; overflow-wrap: anywhere; }
+  .rows { text-align: left; border-top: 1px solid var(--line); margin-top: .5rem; }
+  .row {
+    display: block; padding: .7rem .25rem; border-bottom: 1px solid var(--line);
+    color: var(--text); text-decoration: none; overflow-wrap: anywhere;
+  }
+  .row .k { display: block; font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); margin-bottom: .1rem; }
+  a.row .v { color: var(--accent); }
+  .btn {
+    display: block; width: 100%; margin-top: 1.25rem;
+    background: var(--accent); color: var(--accent-text);
+    border: 0; border-radius: .8rem; padding: .95rem 1rem;
+    font-size: 1.05rem; font-weight: 600; cursor: pointer;
+  }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: .75rem; line-height: 1.4; }
+  .error h1 { margin-bottom: .5rem; }
+</style>
+</head>
+<body>
+<main class="card" id="app">
+  <div class="error">
+    <h1>Kişi Kartı</h1>
+    <p class="sub">Bu sayfa bir NFC kişi kartı tarafından açılır.<br>
+    Kart verisi bulunamadı.<br><br>
+    <span lang="en">This page is opened by an NFC contact card. No card data found.</span></p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+
+  function b64urlDecode(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  function unescapeV(s) {
+    return s.replace(/\\n/gi, '\n').replace(/\\,/g, ',')
+            .replace(/\\;/g, ';').replace(/\\\\/g, '\\');
+  }
+
+  function parseVCard(text) {
+    var raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    var lines = [];
+    raw.forEach(function (line) {
+      if ((line[0] === ' ' || line[0] === '\t') && lines.length) {
+        lines[lines.length - 1] += line.slice(1);
+      } else if (line.length) {
+        lines.push(line);
+      }
+    });
+
+    var c = { tels: [], emails: [], urls: [] };
+    lines.forEach(function (line) {
+      var idx = line.indexOf(':');
+      if (idx <= 0) return;
+      var key = line.slice(0, idx).split(';')[0].toUpperCase();
+      var val = line.slice(idx + 1);
+      switch (key) {
+        case 'FN': c.fn = unescapeV(val); break;
+        case 'ORG': c.org = unescapeV(val); break;
+        case 'TITLE': c.title = unescapeV(val); break;
+        case 'TEL': c.tels.push(unescapeV(val)); break;
+        case 'EMAIL': c.emails.push(unescapeV(val)); break;
+        case 'NOTE': c.note = unescapeV(val); break;
+        case 'URL': c.urls.push(unescapeV(val)); break;
+        case 'ADR':
+          var parts = val.split(';').map(unescapeV).filter(function (p) { return p.trim(); });
+          c.adr = parts.join(', ');
+          break;
+      }
+    });
+    return c.fn ? c : null;
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text) n.textContent = text;
+    return n;
+  }
+
+  function addRow(parent, label, value, href) {
+    var row = el(href ? 'a' : 'div', 'row');
+    if (href) row.href = href;
+    row.appendChild(el('span', 'k', label));
+    var v = el('span', 'v', value);
+    row.appendChild(v);
+    parent.appendChild(row);
+  }
+
+  function render(c, vcfText) {
+    var app = document.getElementById('app');
+    app.textContent = '';
+
+    var initials = c.fn.trim().split(/\s+/).slice(0, 2)
+      .map(function (w) { return w[0]; }).join('').toUpperCase();
+    app.appendChild(el('div', 'avatar', initials));
+    app.appendChild(el('h1', null, c.fn));
+
+    var subParts = [];
+    if (c.title) subParts.push(c.title);
+    if (c.org) subParts.push(c.org);
+    if (subParts.length) app.appendChild(el('p', 'sub', subParts.join(' · ')));
+
+    var rows = el('div', 'rows');
+    c.tels.forEach(function (t) { addRow(rows, 'Telefon', t, 'tel:' + t.replace(/\s/g, '')); });
+    c.emails.forEach(function (e) { addRow(rows, 'E-posta', e, 'mailto:' + e); });
+    if (c.adr) addRow(rows, 'Adres', c.adr);
+    c.urls.forEach(function (u) {
+      var href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+      addRow(rows, 'Web', u, href);
+    });
+    if (c.note) addRow(rows, 'Not', c.note);
+    app.appendChild(rows);
+
+    var btn = el('button', 'btn', 'Kişilere Ekle');
+    btn.addEventListener('click', function () {
+      var blob = new Blob([vcfText], { type: 'text/vcard;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = c.fn.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'kisi';
+      a.download += '.vcf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    app.appendChild(btn);
+
+    app.appendChild(el('p', 'hint',
+      'iPhone: indirilen dosyaya dokunup "Kişi Oluştur"u seçin. · ' +
+      'Add to Contacts: tap the downloaded file and choose "Create New Contact".'));
+
+    document.title = c.fn + ' — Kişi Kartı';
+  }
+
+  try {
+    var frag = location.hash.slice(1);
+    if (!frag) return;
+    var vcfText = b64urlDecode(frag);
+    var contact = parseVCard(vcfText);
+    if (contact) render(contact, vcfText);
+  } catch (e) { /* hatalı fragment: varsayılan açıklama görünür kalır */ }
+})();
+</script>
+</body>
+</html>
