@@ -54,6 +54,7 @@ abstract class AppStrings {
   String get readSectionTechnical;
   String get readUid;
   String get readUidReversed;
+  String get readUidDecimal;
   String get readChip;
   String get readManufacturer;
   String get readTechnologies;
@@ -64,6 +65,31 @@ abstract class AppStrings {
   String get readNotFormatted;
   String get readPasswordProtected;
   String get readNoRecords;
+
+  // --- Okuma: kayit eylemleri (A10) ---
+  String get readActionOpenLink;
+  String get readActionCall;
+  String get readActionEmail;
+  String get readActionSms;
+  String get readActionMap;
+  String get readActionWifiInfo;
+  String get readActionShareContact;
+  String get readWifiDialogTitle;
+  String get readWifiSsid;
+  String get readWifiPassword;
+  String get readWifiSecurity;
+  String get readActionFailed;
+
+  // --- Okuma: surekli mod (A17) ---
+  String get readContinuousStart;
+  String get readContinuousStop;
+  String get readContinuousTitle;
+  String get readContinuousHint;
+  String readContinuousCount(int count);
+
+  // --- Okuma: disa aktarma (A18) ---
+  String get readShareJson;
+  String get readShareResult;
 
   // --- Yazma ekrani ---
   String get writeEmptyTitle;
@@ -87,6 +113,31 @@ abstract class AppStrings {
   String get historyYesterday;
   String get historyThisWeek;
   String get historyOlder;
+  String get historySearchHint;
+  String get historyFilterAll;
+  String get historyTabScans;
+  String get historyTabDumps;
+  String get historySetAlias;
+  String get historyAliasDialogTitle;
+  String get historyAliasHint;
+  String get historyLoadToWrite;
+  String get historyLoadToWriteUnavailable;
+  String get historyExportAll;
+  String get historyImportAll;
+  String get historyNoExportsFound;
+  String get dumpArchiveEmptyTitle;
+  String get dumpArchiveEmptyDescription;
+  String get dumpRename;
+  String get dumpExport;
+
+  /// "Dışa aktarıldı: /path/to/file.json"
+  String historyExportSuccess(String path);
+
+  /// "12 kayıt içe aktarıldı"
+  String historyImportSuccess(int count);
+
+  /// "Döküm dışa aktarıldı: /path/to/file.json"
+  String dumpExportSuccess(String path);
 
   // --- Ayarlar ---
   String get settingsTitle;

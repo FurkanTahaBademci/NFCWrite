@@ -71,6 +71,8 @@ final class AppStringsTr extends AppStrings {
   @override
   String get readUidReversed => 'UID (ters sıra)';
   @override
+  String get readUidDecimal => 'UID (ondalık)';
+  @override
   String get readChip => 'Yonga';
   @override
   String get readManufacturer => 'Üretici';
@@ -90,6 +92,47 @@ final class AppStringsTr extends AppStrings {
   String get readPasswordProtected => 'Şifre korumalı';
   @override
   String get readNoRecords => 'Etikette NDEF kaydı yok';
+
+  @override
+  String get readActionOpenLink => 'Bağlantıyı aç';
+  @override
+  String get readActionCall => 'Ara';
+  @override
+  String get readActionEmail => 'E-posta gönder';
+  @override
+  String get readActionSms => 'SMS gönder';
+  @override
+  String get readActionMap => 'Haritada aç';
+  @override
+  String get readActionWifiInfo => 'Wi-Fi bilgilerini gör';
+  @override
+  String get readActionShareContact => 'Kişi olarak paylaş';
+  @override
+  String get readWifiDialogTitle => 'Wi-Fi bilgileri';
+  @override
+  String get readWifiSsid => 'Ağ adı (SSID)';
+  @override
+  String get readWifiPassword => 'Parola';
+  @override
+  String get readWifiSecurity => 'Güvenlik';
+  @override
+  String get readActionFailed => 'Bu eylem gerçekleştirilemedi.';
+
+  @override
+  String get readContinuousStart => 'Sürekli tarama';
+  @override
+  String get readContinuousStop => 'Sürekli taramayı durdur';
+  @override
+  String get readContinuousTitle => 'Sürekli tarama';
+  @override
+  String get readContinuousHint => 'Etiketleri sırayla telefonun arkasına tutun';
+  @override
+  String readContinuousCount(int count) => '$count etiket okundu';
+
+  @override
+  String get readShareJson => 'JSON olarak paylaş';
+  @override
+  String get readShareResult => 'Okuma sonucu';
 
   @override
   String get writeEmptyTitle => 'Kayıt eklenmedi';
@@ -130,6 +173,46 @@ final class AppStringsTr extends AppStrings {
   String get historyThisWeek => 'Bu hafta';
   @override
   String get historyOlder => 'Daha eski';
+  @override
+  String get historySearchHint => 'UID, takma ad veya içerikte ara';
+  @override
+  String get historyFilterAll => 'Tümü';
+  @override
+  String get historyTabScans => 'Taramalar';
+  @override
+  String get historyTabDumps => 'Dökümler';
+  @override
+  String get historySetAlias => 'Takma ad ver';
+  @override
+  String get historyAliasDialogTitle => 'Takma ad';
+  @override
+  String get historyAliasHint => 'Örn. Ofis kapısı';
+  @override
+  String get historyLoadToWrite => 'Yazma ekranına yükle';
+  @override
+  String get historyLoadToWriteUnavailable =>
+      'Bu kayıtta yüklenebilecek NDEF verisi yok';
+  @override
+  String get historyExportAll => 'Geçmişi dışa aktar';
+  @override
+  String get historyImportAll => 'Geçmişi içe aktar';
+  @override
+  String get historyNoExportsFound => 'Daha önce dışa aktarım bulunamadı';
+  @override
+  String get dumpArchiveEmptyTitle => 'Döküm arşivi boş';
+  @override
+  String get dumpArchiveEmptyDescription =>
+      'Kaydedilen bellek dökümleri burada listelenir.';
+  @override
+  String get dumpRename => 'Yeniden adlandır';
+  @override
+  String get dumpExport => 'Dosyaya aktar';
+  @override
+  String historyExportSuccess(String path) => 'Dışa aktarıldı: $path';
+  @override
+  String historyImportSuccess(int count) => '$count kayıt içe aktarıldı';
+  @override
+  String dumpExportSuccess(String path) => 'Döküm dışa aktarıldı: $path';
 
   @override
   String get settingsTitle => 'Ayarlar';

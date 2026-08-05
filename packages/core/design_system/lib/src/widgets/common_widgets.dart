@@ -356,6 +356,98 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+/// Uygulama iskeleti — ortak app bar ve body alanini saglar.
+class AppScaffold extends StatelessWidget {
+  const AppScaffold({
+    required this.body,
+    this.title,
+    this.actions,
+    this.leading,
+    this.floatingActionButton,
+    this.bottomNavigationBar,
+    this.drawer,
+    this.resizeToAvoidBottomInset = true,
+    this.safeArea = true,
+    super.key,
+  });
+
+  final String? title;
+  final Widget body;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final Widget? floatingActionButton;
+  final Widget? bottomNavigationBar;
+  final Widget? drawer;
+  final bool resizeToAvoidBottomInset;
+  final bool safeArea;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaffold = Scaffold(
+      appBar: title == null
+          ? null
+          : AppBar(
+              title: Text(title!),
+              leading: leading,
+              actions: actions,
+            ),
+      body: safeArea ? SafeArea(child: body) : body,
+      floatingActionButton: floatingActionButton,
+      bottomNavigationBar: bottomNavigationBar,
+      drawer: drawer,
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+    );
+
+    return scaffold;
+  }
+}
+
+/// Ekran uzerinde yuku gosteren overlay.
+class LoadingOverlay extends StatelessWidget {
+  const LoadingOverlay({
+    required this.child,
+    required this.loading,
+    this.message,
+    super.key,
+  });
+
+  final Widget child;
+  final bool loading;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        IgnorePointer(ignoring: loading, child: child),
+        if (loading)
+          Positioned.fill(
+            child: ColoredBox(
+              color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.08),
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (message != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Text(message!),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Liste bolum basligi.
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {this.trailing, super.key});
@@ -385,7 +477,7 @@ class SectionHeader extends StatelessWidget {
               ),
             ),
           ),
-          ?trailing,
+          if (trailing != null) trailing!,
         ],
       ),
     );

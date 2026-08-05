@@ -71,6 +71,8 @@ final class AppStringsEn extends AppStrings {
   @override
   String get readUidReversed => 'UID (reversed)';
   @override
+  String get readUidDecimal => 'UID (decimal)';
+  @override
   String get readChip => 'Chip';
   @override
   String get readManufacturer => 'Manufacturer';
@@ -90,6 +92,47 @@ final class AppStringsEn extends AppStrings {
   String get readPasswordProtected => 'Password protected';
   @override
   String get readNoRecords => 'No NDEF records on this tag';
+
+  @override
+  String get readActionOpenLink => 'Open link';
+  @override
+  String get readActionCall => 'Call';
+  @override
+  String get readActionEmail => 'Send email';
+  @override
+  String get readActionSms => 'Send SMS';
+  @override
+  String get readActionMap => 'Open in maps';
+  @override
+  String get readActionWifiInfo => 'View Wi-Fi details';
+  @override
+  String get readActionShareContact => 'Share as contact';
+  @override
+  String get readWifiDialogTitle => 'Wi-Fi details';
+  @override
+  String get readWifiSsid => 'Network name (SSID)';
+  @override
+  String get readWifiPassword => 'Password';
+  @override
+  String get readWifiSecurity => 'Security';
+  @override
+  String get readActionFailed => 'This action could not be completed.';
+
+  @override
+  String get readContinuousStart => 'Continuous scan';
+  @override
+  String get readContinuousStop => 'Stop continuous scan';
+  @override
+  String get readContinuousTitle => 'Continuous scan';
+  @override
+  String get readContinuousHint => 'Hold each tag against the back of your phone in turn';
+  @override
+  String readContinuousCount(int count) => '$count tags read';
+
+  @override
+  String get readShareJson => 'Share as JSON';
+  @override
+  String get readShareResult => 'Read result';
 
   @override
   String get writeEmptyTitle => 'No records added';
@@ -129,6 +172,46 @@ final class AppStringsEn extends AppStrings {
   String get historyThisWeek => 'This week';
   @override
   String get historyOlder => 'Older';
+  @override
+  String get historySearchHint => 'Search UID, alias or content';
+  @override
+  String get historyFilterAll => 'All';
+  @override
+  String get historyTabScans => 'Scans';
+  @override
+  String get historyTabDumps => 'Dumps';
+  @override
+  String get historySetAlias => 'Set alias';
+  @override
+  String get historyAliasDialogTitle => 'Alias';
+  @override
+  String get historyAliasHint => 'e.g. Office door';
+  @override
+  String get historyLoadToWrite => 'Load into write screen';
+  @override
+  String get historyLoadToWriteUnavailable =>
+      'This record has no NDEF data to load';
+  @override
+  String get historyExportAll => 'Export history';
+  @override
+  String get historyImportAll => 'Import history';
+  @override
+  String get historyNoExportsFound => 'No previous exports found';
+  @override
+  String get dumpArchiveEmptyTitle => 'Dump archive is empty';
+  @override
+  String get dumpArchiveEmptyDescription =>
+      'Saved memory dumps will be listed here.';
+  @override
+  String get dumpRename => 'Rename';
+  @override
+  String get dumpExport => 'Export to file';
+  @override
+  String historyExportSuccess(String path) => 'Exported to: $path';
+  @override
+  String historyImportSuccess(int count) => 'Imported $count records';
+  @override
+  String dumpExportSuccess(String path) => 'Dump exported to: $path';
 
   @override
   String get settingsTitle => 'Settings';
