@@ -9,23 +9,23 @@ Durum kodları: `[ ]` yapılmadı · `[~]` devam ediyor · `[x]` bitti · `[-]` 
 | # | Özellik | Durum | Not |
 |---|---|---|---|
 | A1 | Etiket tarama oturumu (bekle / bulundu / hata durumları) | [ ] | Ön yüz animasyonlu tarama sayfası |
-| A2 | UID / seri numarası (hex + ters sıra + ondalık gösterim) | [ ] | Kopyala butonu |
+| A2 | UID / seri numarası (hex + ters sıra + ondalık gösterim) | [x] | `formatUidDecimal` (shared_utils) + `TagInfoView`'da satır |
 | A3 | Etiket teknolojileri listesi (NfcA, Ndef, MifareUltralight...) | [ ] | Android techList |
-| A4 | Yonga (IC) tanımlama: NTAG213/215/216, Ultralight EV1, Classic 1K/4K, ICODE SLIX | [ ] | `GET_VERSION` + ATQA/SAK ile |
+| A4 | Yonga (IC) tanımlama: NTAG213/215/216, Ultralight EV1, Classic 1K/4K, ICODE SLIX | [x] | ICODE SLIX/SLIX2 artık `GET_SYSTEM_INFO` IC referansıyla ayrılıyor — ⚠️ eşleme doğrulanmadı, bkz. progress.md |
 | A5 | Üretici tanımlama (UID byte 0 → IC üreticisi) | [ ] | ISO/IEC 7816-6 tablosu |
 | A6 | Bellek bilgisi: toplam / kullanılan / boş byte, sayfa sayısı | [ ] | |
 | A7 | Yazılabilir mi / salt-okunur mu / biçimlendirilmiş mi | [ ] | |
 | A8 | NDEF mesaj çözümleme — kayıt kayıt liste | [ ] | Tip ikonları ile |
 | A9 | Her kayıt için: TNF, tip, id, payload (metin + hex) | [ ] | Genişletilebilir kart |
-| A10 | Kayıt içeriğine göre eylem (URL aç, ara, telefon, e-posta, WiFi bağlan) | [ ] | |
-| A11 | Ham bellek dökümü (hex viewer, sayfa/blok numaralı) | [ ] | Monospace, seçilebilir |
-| A12 | ECC orijinallik imzası okuma (`READ_SIG`) + NXP anahtarıyla doğrulama | [ ] | Sahte etiket tespiti |
+| A10 | Kayıt içeriğine göre eylem (URL aç, ara, telefon, e-posta, WiFi bağlan) | [x] | `RecordContentActions` — url_launcher; WiFi için doğrudan bağlanma yok, bilgi diyaloğu gösterir |
+| A11 | Ham bellek dökümü (hex viewer, sayfa/blok numaralı) | [x] | MIFARE Classic artık `tag_ops`'ta gerçek sektör/blok okuma yapıyor (önceden `NotImplementedYet`) |
+| A12 | ECC orijinallik imzası okuma (`READ_SIG`) + NXP anahtarıyla doğrulama | [~] | secp128r1/ECDSA motoru tam ve test edilmiş; NXP genel anahtarı ⚠️ doğrulanmadığı için bilerek `null` — `TagNotSupported` döner |
 | A13 | NFC sayaç değeri okuma (`READ_CNT`) | [ ] | NTAG21x |
 | A14 | Yapılandırma sayfaları çözümlemesi (AUTH0, PROT, CFGLCK, MIRROR) | [ ] | İnsan-okunur |
 | A15 | Kilit byte'ları çözümlemesi (statik + dinamik) | [ ] | Hangi sayfa kilitli |
-| A16 | MIFARE Classic sektör/blok okuma (anahtar sözlüğü ile) | [ ] | Erişim bitleri çözümlemesi |
-| A17 | Sürekli tarama modu (arka arkaya etiket okuma) | [ ] | Envanter sayımı için |
-| A18 | Okuma sonucunu paylaş / JSON dışa aktar | [ ] | |
+| A16 | MIFARE Classic sektör/blok okuma (anahtar sözlüğü ile) | [x] | `scanMifareClassicKeys` varsayılan sözlükle tüm sektörleri dener |
+| A17 | Sürekli tarama modu (arka arkaya etiket okuma) | [x] | `ContinuousReadController` + liste/sayaç alt sayfası |
+| A18 | Okuma sonucunu paylaş / JSON dışa aktar | [x] | `tagInfoToJsonString` + share_plus |
 
 ## B. YAZMA (Track T3 · `feature_write` + `ndef_codec`)
 
@@ -105,13 +105,13 @@ Durum kodları: `[ ]` yapılmadı · `[~]` devam ediyor · `[x]` bitti · `[-]` 
 
 | # | Özellik | Durum |
 |---|---|---|
-| D1 | Taranan her etiketi geçmişe kaydet (UID, tip, zaman, NDEF özeti) | [ ] |
-| D2 | Geçmiş listesi: arama, filtre (tip/tarih), silme | [ ] |
-| D3 | Geçmiş kaydından detay ekranı | [ ] |
-| D4 | Etikete takma ad verme (UID → "Ofis kapısı") | [ ] |
-| D5 | Dump arşivi — kayıtlı bellek dökümleri | [ ] |
-| D6 | Tümünü JSON dışa aktar / içe aktar | [ ] |
-| D7 | Bir geçmiş kaydını "yazma" ekranına yükle | [ ] |
+| D1 | Taranan her etiketi geçmişe kaydet (UID, tip, zaman, NDEF özeti) | [x] |
+| D2 | Geçmiş listesi: arama, filtre (tip/tarih), silme | [x] |
+| D3 | Geçmiş kaydından detay ekranı | [x] |
+| D4 | Etikete takma ad verme (UID → "Ofis kapısı") | [x] |
+| D5 | Dump arşivi — kayıtlı bellek dökümleri | [x] |
+| D6 | Tümünü JSON dışa aktar / içe aktar | [x] |
+| D7 | Bir geçmiş kaydını "yazma" ekranına yükle | [x] |
 
 ## E. TASARIM & AYARLAR (Track T5 · `design_system`, `localization`, `feature_settings`)
 

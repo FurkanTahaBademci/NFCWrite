@@ -21,7 +21,7 @@ packages/features/feature_history/**
       `idle / scanning / success(NfcTagInfo) / failure(NfcFailure)`
 - [ ] T2.2 `ReadPage` — boş durum: büyük tarama düğmesi + son 3 okuma
 - [ ] T2.3 Tarama alt sayfasını bağla (`NfcScanSheet`, design_system)
-- [ ] T2.4 `TagInfoView` — UID (hex / ters hex / ondalık), kopyala düğmeleri
+- [x] T2.4 `TagInfoView` — UID (hex / ters hex / ondalık), kopyala düğmeleri
 - [ ] T2.5 Teknoloji rozetleri listesi (`techList` → okunabilir isim)
 - [ ] T2.6 Yonga tanımlama gösterimi (`TagIdentity`) — model, üretici, bellek
 - [ ] T2.7 Kapasite göstergesi — kullanılan / toplam, ilerleme çubuğu
@@ -34,8 +34,10 @@ packages/features/feature_history/**
 - [ ] T2.10 Kayıt genişletme: TNF, tip, id, payload (metin + hex sekmeli)
 - [ ] T2.11 Kayıt tipine göre zengin gösterim (URL, WiFi, vCard, geo, tel...)
       — `ndef_codec` çözücülerini kullan, kendi ayrıştırıcını yazma
-- [ ] T2.12 İçerik eylemleri: URL aç, arama yap, ara/SMS gönder, kişi kaydet,
-      WiFi'ye bağlan, konumu haritada aç
+- [~] T2.12 İçerik eylemleri: URL aç, arama yap, ara/SMS gönder, kişi kaydet,
+      WiFi'ye bağlan, konumu haritada aç — `RecordContentActions` ile hepsi
+      var, "WiFi'ye bağlan" yalnızca SSID/parola diyaloğu gösteriyor
+      (native platform entegrasyonu olmadan otomatik bağlanma yapılamaz)
 - [ ] T2.13 Tek kayıt / tüm mesajı paylaş
 
 ## Aşama 3 — Teknik görünüm
@@ -48,12 +50,14 @@ packages/features/feature_history/**
 - [ ] T2.17 Sayaç değeri gösterimi
 - [ ] T2.18 ECC imza gösterimi + doğrulama sonucu (geçerli / geçersiz / bilinmiyor)
 - [ ] T2.19 MIFARE Classic sektör görünümü — sektör/blok ağacı, erişim bitleri
-- [ ] T2.20 Okuma sonucunu JSON olarak dışa aktar
+- [x] T2.20 Okuma sonucunu JSON olarak dışa aktar
 
 ## Aşama 4 — Sürekli mod
 
-- [ ] T2.21 Sürekli tarama modu — arka arkaya etiket, sayaç, liste
-- [ ] T2.22 Aynı etiketi tekrar okuma engeli (UID bazlı, ayarlanabilir)
+- [x] T2.21 Sürekli tarama modu — arka arkaya etiket, sayaç, liste
+- [~] T2.22 Aynı etiketi tekrar okuma engeli (UID bazlı, ayarlanabilir) —
+      `ContinuousReadController` art arda aynı UID'yi atlıyor ama sabit
+      davranış; ayarlanabilir bir seçenek yok
 
 ## Aşama 5 — Geçmiş (`feature_history`)
 

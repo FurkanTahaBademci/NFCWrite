@@ -76,6 +76,7 @@ final class AppDependencies {
       write.nfcSessionServiceProvider.overrideWithValue(session),
       write.tagOperationsProvider.overrideWithValue(operations),
       write.templateRepositoryProvider.overrideWithValue(templateRepository),
+      write.historyRepositoryProvider.overrideWithValue(historyRepository),
 
       // --- feature_tools ---
       tools.nfcSessionServiceProvider.overrideWithValue(session),

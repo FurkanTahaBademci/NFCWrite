@@ -48,6 +48,11 @@ packages/services/ndef_codec/**
 - [ ] T3.18 **WiFi (WSC)** — `docs/03 §1.4`, TLV kodlayıcı, tüm auth tipleri
 - [~] T3.19 **vCard 3.0** — ad, telefon(lar), e-posta(lar), şirket, unvan,
       adres, web, not; satır katlama (folding) doğru olmalı
+- [x] T3.19a **vCard iPhone uyumluluğu** — iOS arka plan okuması MIME
+      vCard'ı yok sayar; `VCardShareLink` vCard'ı base64url olarak URL
+      fragment'ına gömer, sihirbaz "record stacking" ile vCard + URI çift
+      kaydı yazar. Çözücü sayfa: `docs/v/index.html` (GitHub Pages,
+      adres kartlara kalıcı yazılır — TAŞIMA/SİLME)
 - [ ] T3.20 **Bluetooth OOB** — klasik eşleştirme (MAC + isim + sınıf)
 - [ ] T3.21 **Bluetooth LE OOB**
 - [ ] T3.22 **Akıllı poster (`Sp`)** — iç içe URI + başlık + eylem kaydı

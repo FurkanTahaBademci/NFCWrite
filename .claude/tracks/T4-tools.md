@@ -40,7 +40,10 @@ diğer `feature_*`
 - [ ] T4.9 C14 Bellek dökümü al → `TagDump` nesnesi
 - [ ] T4.10 Dump'ı `.bin` ve `.json` olarak dışa aktar
 - [ ] T4.11 A13 Sayaç okuma (`READ_CNT`)
-- [ ] T4.12 A12 ECC imza okuma (`READ_SIG`) + NXP açık anahtarıyla doğrulama
+- [~] T4.12 A12 ECC imza okuma (`READ_SIG`) + NXP açık anahtarıyla doğrulama —
+      secp128r1/ECDSA motoru tamam ve test edilmiş (`tag_ops/lib/src/ecc/`);
+      NXP genel anahtarı ⚠️ doğrulanamadığından bilerek `null`
+      (`NxpOriginalityKeys`), `verifySignature` `TagNotSupported` dönüyor
 - [ ] T4.13 C19 Komut ön ayarları listesi (hazır komut düğmeleri)
 
 ## Aşama 3 — İçerik araçları
@@ -50,8 +53,11 @@ diğer `feature_*`
       iki aşamalı akış (önce kaynak, sonra hedef), aradaki durumu göster
 - [ ] T4.16 C4 Fabrika sıfırlama — kullanıcı sayfalarını 0x00 yap
 - [ ] T4.17 C15 Dump geri yükleme — dosyadan oku, uyumluluk kontrolü, yaz
-- [ ] T4.18 C2 Tam klon — ham sayfa kopyası (yalnızca UID yazılabilir kartlarda;
-      değilse `TagNotSupported` döndür, sessizce yarım iş yapma)
+- [x] T4.18 C2 Tam klon — MIFARE Classic magic (Gen2/CUID) klonlama:
+      `probeMifareMagic` (blok 0 yazılabilirlik testi, tahrip edici değil) +
+      `cloneMifareClassicTo` (blok 0 dahil kopya, fragmanlar varsayılan olarak
+      atlanır). Hedef magic değilse `TagNotSupported`. UI: "Magic kart klonla"
+      (iki dokunuş). BCC otomatik doğrulanır/düzeltilir.
 
 ## Aşama 4 — Yapılandırma araçları
 
@@ -81,9 +87,13 @@ Her biri: `DangerAck` + otomatik yedek + `DangerDialog` + uzman modu kapısı.
 
 - [ ] T4.31 C18 **Ham komut konsolu** — hex giriş, cevap gösterimi, komut
       geçmişi, kaydedilmiş komutlar, sürekli oturum
-- [ ] T4.32 C20 MIFARE Classic anahtar sözlüğü — varsayılan anahtarları dene,
+- [x] T4.32 C20 MIFARE Classic anahtar sözlüğü — varsayılan anahtarları dene,
       hangi sektör hangi anahtarla açıldı raporu
-- [ ] T4.33 C21 MIFARE Classic blok okuma / yazma + sektör fragmanı düzenleyici
+- [~] T4.33 C21 MIFARE Classic blok okuma / yazma + sektör fragmanı düzenleyici —
+      `readMemory()` gerçek sektör/blok dökümü yapıyor; blok **yazma** eklendi
+      (`writeMifareClassicBlock` — sektör auth + blok 0 BCC güvenlik ağı, UI:
+      "Sektör 0 / blok yaz"). Görsel sektör fragmanı (trailer) düzenleyici
+      hâlâ yok — bilerek: erişim byte'ları yanlışsa sektör ölür.
 - [ ] T4.34 C22 ISO15693 blok okuma/yazma, AFI/DSFID okuma-yazma
 - [ ] T4.35 C23 ISO15693 blok kilitleme (uzman modu)
 - [ ] T4.36 C24 Etiket sağlığı testi — tüm sayfaları yaz/oku doğrula
