@@ -157,3 +157,15 @@ String formatUid(List<int> uid) => bytesToHex(uid, separator: ':');
 /// yapabilmesi icin her iki gosterim de sunulur.
 String reverseUidHex(List<int> uid) =>
     bytesToHex(uid.reversed.toList(growable: false));
+
+/// UID'yi ondalik (decimal) tam sayi metni olarak dondurur.
+///
+/// UID buyuk-endian yorumlanir (ilk byte en anlamli). 7-10 byte'lik UID'ler
+/// `int`'e sigmayabilecegi icin [BigInt] kullanilir.
+String formatUidDecimal(List<int> uid) {
+  var value = BigInt.zero;
+  for (final byte in uid) {
+    value = (value << 8) | BigInt.from(byte & 0xFF);
+  }
+  return value.toString();
+}

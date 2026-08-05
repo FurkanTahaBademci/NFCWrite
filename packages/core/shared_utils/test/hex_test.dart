@@ -89,4 +89,19 @@ void main() {
     expect(formatUid([0x04, 0xa1, 0xb2]), '04:A1:B2');
     expect(reverseUidHex([0x04, 0xa1, 0xb2]), 'B2A104');
   });
+
+  group('formatUidDecimal', () {
+    test('kucuk UID dogru cozulur', () {
+      expect(formatUidDecimal([0x00, 0x00, 0x01]), '1');
+      expect(formatUidDecimal([0x01, 0x00]), '256');
+    });
+
+    test('7 byte`lik UID tasmadan cozulur', () {
+      // 04 A1 B2 C3 D4 E5 80 -> buyuk-endian tam sayi
+      expect(
+        formatUidDecimal([0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0x80]),
+        BigInt.parse('04A1B2C3D4E580', radix: 16).toString(),
+      );
+    });
+  });
 }
