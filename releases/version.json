@@ -1,8 +1,8 @@
 {
-  "version": "0.1.4",
-  "buildNumber": 6,
-  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.4/nfc_toolkit-v0.1.4+6.apk",
+  "version": "0.1.5",
+  "buildNumber": 7,
+  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.5/nfc_toolkit-v0.1.5+7.apk",
   "forceUpdate": false,
-  "sha256": "3cf85cbcdbdf0e1a53548761b6e42f83593e5e6a5a3d96f934be627bf58225fb",
-  "releaseNotes": "- Diğer sekmesindeki araçlar sadeleştirildi ve kalan placeholder akışlar temizlendi\n- Şifre koyma/kaldırma akışları 4 byte sabit giriş ve ondalık seçenekle toparlandı\n- Yazma tarafındaki kayıt tipleri ve Türkçe metinler yeniden gözden geçirildi\n- Release APK üretildi ve OTA manifesti bu sürüme bağlandı"
+  "sha256": "df63c460a1de1b8fccf4dc9563cd17dab47a50b002c2525b7a6527f399304ec0",
+  "releaseNotes": "- MIFARE Classic magic (Gen2/CUID) kart klonlama ve sektör 0 / blok yazma araçları eklendi\n- MIFARE Classic bellek dökümü + varsayılan anahtar taraması, ICODE SLIX/SLIX2 tanımlama\n- Sürekli tarama modu ve kayıt içeriği eylemleri (bağlantı / ara / e-posta / harita / Wi-Fi / vCard)\n- Geçmiş arama + filtreler, döküm arşivi, JSON dışa/içe aktarma\n- iPhone uyumlu vCard paylaşımı ve genişletilmiş yazma kayıt tipleri"
 }
