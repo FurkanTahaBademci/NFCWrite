@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:localization/localization.dart';
@@ -181,8 +183,165 @@ class _IdentityTab extends StatelessWidget {
             ],
           ),
         ),
+
+        // Asagidaki uc bolum yalnizca DERIN okumada (inspect deep) dolar.
+        // Ayarlardan "okurken tam dokum al" acilirsa her taramada gorunur.
+        if (info.config != null) ..._configSection(info.config!),
+        if (info.lockStatus != null) ..._lockSection(info.lockStatus!),
+        if (info.signature != null) ..._signatureSection(info.signature!),
       ],
     );
+  }
+
+  /// Yapilandirma sayfalarinin insan-okunur dokumu (AUTH0, PROT, CFGLCK,
+  /// AUTHLIM, MIRROR).
+  List<Widget> _configSection(NtagConfig config) => [
+    const SectionHeader('Yapılandırma'),
+
+    if (config.configLocked)
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: TagBadge(
+          label: 'CFGLCK — yapılandırma kalıcı olarak dondurulmuş',
+          icon: Icons.ac_unit,
+          risk: RiskLevel.danger,
+        ),
+      ),
+
+    InfoRow(
+      label: 'Şifre koruması (AUTH0)',
+      value: config.isPasswordProtected
+          ? 'Sayfa 0x${config.auth0.toHexByte()} ve sonrası'
+          : 'Kapalı (0xFF)',
+      icon: config.isPasswordProtected ? Icons.lock_outline : Icons.lock_open,
+      monospace: true,
+    ),
+    if (config.isPasswordProtected)
+      InfoRow(
+        label: 'Koruma kapsamı (PROT)',
+        value: config.isReadProtected
+            ? 'Okuma + yazma korumalı'
+            : 'Yalnızca yazma korumalı',
+        icon: Icons.shield_outlined,
+      ),
+    InfoRow(
+      label: 'Deneme limiti (AUTHLIM)',
+      value: config.authLimit == 0
+          ? 'Sınırsız'
+          : '${config.authLimit} yanlış deneme sonrası kilitlenir',
+      icon: Icons.repeat,
+    ),
+    InfoRow(
+      label: 'NFC sayacı',
+      value: config.counterEnabled
+          ? (config.counterPasswordProtected ? 'Açık (şifreli)' : 'Açık')
+          : 'Kapalı',
+      icon: Icons.numbers,
+    ),
+    InfoRow(
+      label: 'Yansıtma (MIRROR)',
+      value: switch (config.mirrorMode) {
+        MirrorMode.none => 'Kapalı',
+        MirrorMode.uid =>
+          'UID → sayfa ${config.mirrorPage}, byte ${config.mirrorByte}',
+        MirrorMode.counter =>
+          'Sayaç → sayfa ${config.mirrorPage}, byte ${config.mirrorByte}',
+        MirrorMode.uidAndCounter =>
+          'UID + sayaç → sayfa ${config.mirrorPage}, byte ${config.mirrorByte}',
+      },
+      icon: Icons.flip_to_front,
+    ),
+    InfoRow(
+      label: 'Güçlü modülasyon',
+      value: config.strongModulation ? 'Açık' : 'Kapalı',
+      icon: Icons.graphic_eq,
+    ),
+  ];
+
+  /// Kilit byte'larinin cozumu — hangi sayfalar yazmaya kapali.
+  List<Widget> _lockSection(LockStatus lock) {
+    final locked = lock.lockedPages.toList()..sort();
+    final blockLocked = lock.blockLockedPages.toList()..sort();
+
+    return [
+      const SectionHeader('Kilit durumu'),
+
+      if (lock.permanentlyReadOnly)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: TagBadge(
+            label: 'Etiket kalıcı olarak salt-okunur',
+            icon: Icons.lock,
+            risk: RiskLevel.danger,
+          ),
+        ),
+
+      InfoRow(
+        label: 'Kilitli sayfalar',
+        value: locked.isEmpty ? 'Yok' : _formatPageList(locked),
+        icon: Icons.grid_off,
+        monospace: locked.isNotEmpty,
+      ),
+      if (blockLocked.isNotEmpty)
+        InfoRow(
+          label: 'Kilit bitleri dondurulmuş (block-lock)',
+          value: _formatPageList(blockLocked),
+          icon: Icons.lock_clock,
+          monospace: true,
+        ),
+      InfoRow(
+        label: 'Capability Container (sayfa 3)',
+        value: lock.capabilityContainerLocked ? 'Kilitli' : 'Açık',
+        icon: Icons.inventory_2_outlined,
+      ),
+    ];
+  }
+
+  /// ECC orijinallik imzasi.
+  ///
+  /// Dogrulama sonucu simdilik gosterilmiyor: NXP genel anahtari
+  /// (`NxpOriginalityKeys`) datasheet ile dogrulanamadigi icin bilerek
+  /// bos birakildi — bkz. T4.12. Imzanin kendisi yine de degerlidir.
+  List<Widget> _signatureSection(Uint8List signature) => [
+    const SectionHeader('Orijinallik imzası'),
+    InfoRow(
+      label: 'ECC imzası (${signature.length} byte)',
+      value: bytesToHex(signature, separator: ' '),
+      icon: Icons.verified_outlined,
+      monospace: true,
+    ),
+    const Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: Text(
+        'İmza okundu ancak doğrulanamadı: üreticinin genel anahtarı '
+        'uygulamada henüz tanımlı değil.',
+      ),
+    ),
+  ];
+
+  /// Sayfa listesini araliklara kisaltir: `4-9, 12, 15-16`.
+  String _formatPageList(List<int> pages) {
+    final parts = <String>[];
+    var start = pages.first;
+    var previous = start;
+
+    for (final page in pages.skip(1)) {
+      if (page == previous + 1) {
+        previous = page;
+        continue;
+      }
+      parts.add(start == previous ? '$start' : '$start-$previous');
+      start = page;
+      previous = page;
+    }
+    parts.add(start == previous ? '$start' : '$start-$previous');
+
+    return parts.join(', ');
   }
 }
 
@@ -290,6 +449,7 @@ class _RecordCard extends StatelessWidget {
       _ => Icons.link,
     },
     VCardContent() => Icons.badge_outlined,
+    WifiContent() => Icons.wifi,
     MimeContent() => Icons.description_outlined,
     ExternalContent() => Icons.extension_outlined,
     EmptyContent() => Icons.crop_free,
@@ -300,6 +460,7 @@ class _RecordCard extends StatelessWidget {
     TextContent() => 'Metin',
     UriContent() => 'Baglanti',
     VCardContent() => 'vCard',
+    WifiContent() => 'Wi-Fi ağı',
     MimeContent(:final mimeType) => mimeType,
     ExternalContent() => 'Harici tip',
     EmptyContent() => 'Bos',
