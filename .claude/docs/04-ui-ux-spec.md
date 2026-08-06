@@ -103,7 +103,7 @@ Her araç kartında: ikon, ad, tek satır açıklama, risk rozeti.
 
 | Token | Değer |
 |---|---|
-| Tema | Material 3, dinamik renk (Android 12+), yedek tohum `#2563EB` |
+| Tema | Material 3, yedek tohum `#2563EB`. ⚠️ **Dinamik renk (Android 12+) uygulanmadı** — `dynamic_color` paketi yok, ayar anahtarı ölü (T5.15) |
 | Yarıçap | Kart 16, düğme 12, alt sayfa 28 |
 | Boşluk | 4'ün katları: 4, 8, 12, 16, 24, 32 |
 | Tipografi | Sistem yazı tipi; hex/dump alanları monospace |
@@ -117,6 +117,12 @@ Her araç kartında: ikon, ad, tek satır açıklama, risk rozeti.
 | İşlem başarılı | `lightImpact` | onay tonu |
 | İşlem başarısız | `heavyImpact` | hata tonu |
 | Tehlikeli onay | `selectionClick` | — |
+
+> **Uygulama durumu (2026-08-06 denetimi):** Haptik yalnızca `NfcScanSheet`
+> içinde var (`mediumImpact` / `lightImpact`) ve **ayardan kapatılamıyor** —
+> `AppSettings.hapticFeedback` widget'a hiç geçirilmiyor, widget sabit
+> `true` ile çalışıyor. **Ses geri bildirimi hiç uygulanmadı**; ayar anahtarı
+> var ama kodda hiçbir yerde okunmuyor. Bkz. T5.33.
 
 ## Erişilebilirlik
 

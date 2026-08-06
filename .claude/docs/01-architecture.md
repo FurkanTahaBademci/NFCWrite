@@ -62,6 +62,7 @@ Yatay destek paketleri (herkes kullanabilir, kimseye bağımlı değiller):
 ❌ feature_*      →  feature_*                              (YASAK — kardeş bağımlılık yok)
 
 ✅ services/*     →  nfc_core, shared_utils
+✅ tag_ops        →  ndef_codec       (NDEF yazma/biçimlendirme için — tek istisna)
 ❌ services/*     →  feature_*, design_system               (YASAK)
 
 ✅ nfc_core       →  (hiçbir şey — sadece dart:*, meta, collection)
@@ -83,9 +84,13 @@ feature_tools/LockTagPage
                   ⋮ (runtime'da composition root şunu bağlar)
                   └─ TagOperationsImpl (tag_ops)
                        └─ NfcSessionService.transceive()  ← nfc_core ARAYÜZÜ
-                            └─ NfcTransportImpl (nfc_transport)
+                            └─ AndroidSessionService (nfc_transport)
                                  └─ nfc_manager → Android NFC API
 ```
+
+> Örnekteki `LockTagPage` / `LockTagController` kavramsaldır. Gerçekte tüm
+> araçlar tek bir `ToolDetailPage` üzerinden yürüyor; araç başına ayrı
+> controller **yok** (bkz. T4.39 — `ToolController` tabanı açık bir iş).
 
 `feature_tools` ne `tag_ops`'u ne `nfc_manager`'ı bilir. Test ederken sahte
 (fake) `TagOperations` verilir — NFC donanımı gerekmez.
@@ -107,7 +112,8 @@ Bu sayede `nfc_core` Flutter'a bağımlı olmaz.
 ## Yeni özellik nasıl eklenir?
 
 1. Sözleşme gerekiyorsa `nfc_core` içine arayüz + varlık ekle (T1 onayı).
-2. `packages/features/feature_<ad>` paketi oluştur (`templates/feature_package/`).
+2. `packages/features/feature_<ad>` paketi oluştur
+   (`templates/new_feature_package.md`).
 3. `apps/nfc_toolkit/pubspec.yaml` içine ekle, `workspace:` listesine ekle.
 4. Rotayı `feature_<ad>/routes.dart` içinde tanımla, kabukta birleştir.
 5. `docs/02-feature-matrix.md` tablosunu güncelle.

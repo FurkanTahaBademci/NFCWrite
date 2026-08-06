@@ -21,78 +21,105 @@ diğer `feature_*`
 
 ---
 
-## Aşama 1 — Widget imzaları (ACİL — 3 track bekliyor)
+> Durum kodları: `[ ]` yapılmadı · `[~]` kısmi · `[x]` bitti ·
+> `[-]` kapsam dışı · `[!]` **yazıldı ama hiçbir yerde kullanılmıyor**.
+> Son denetim: **2026-08-06** — koddan doğrulandı.
 
-Önce **sadece imzaları** yaz, gövde `Placeholder()` olabilir. Sonra doldur.
+## Aşama 1 — Widget imzaları (BİTTİ — gövdeleriyle birlikte)
 
-- [ ] T5.1 `NfcScanSheet` — durum: `idle/scanning/tagFound/working/success/failure`,
-      `onCancel`, ilerleme yüzdesi, özel mesaj
-- [ ] T5.2 `DangerDialog` — başlık, açıklama, risk seviyesi, hedef UID,
-      "yedek al" anahtarı, kaydırarak onay
-- [ ] T5.3 `HexDumpView` — `Uint8List`, sayfa boyutu, başlangıç sayfa no,
-      vurgulanacak aralıklar, ASCII sütunu
-- [ ] T5.4 `InfoRow` — etiket + değer + kopyala + isteğe bağlı ikon
-- [ ] T5.5 `TagBadge` — teknoloji/durum rozeti, renk varyantları
-- [ ] T5.6 `CapacityBar` — kullanılan/toplam, taşma durumu
-- [ ] T5.7 `ToolCard` — ikon, ad, açıklama, risk rozeti
-- [ ] T5.8 `EmptyState` — ikon, başlık, açıklama, eylem düğmesi
-- [ ] T5.9 `SectionHeader`, `AppScaffold`, `LoadingOverlay`
+- [x] T5.1 `NfcScanSheet` — durum geçişleri, `onCancel`, özel mesaj
+- [x] T5.2 `DangerDialog` — başlık, açıklama, risk seviyesi, hedef UID,
+      kaydırarak onay
+- [x] T5.3 `HexDumpView` — `Uint8List`, sayfa boyutu, başlangıç sayfa no,
+      ASCII sütunu
+- [x] T5.4 `InfoRow` — etiket + değer + kopyala + ikon
+- [x] T5.5 `TagBadge` — teknoloji/durum rozeti, risk renk varyantları
+- [x] T5.6 `CapacityBar` — kullanılan/toplam, taşma durumu
+- [x] T5.7 `ToolCard` — ikon, ad, açıklama, risk rozeti, `enabled` bayrağı
+- [x] T5.8 `EmptyState` — ikon, başlık, açıklama, eylem düğmesi
+- [~] T5.9 `SectionHeader` ✅ kullanılıyor · `AppScaffold` ve `LoadingOverlay`
+      **[!] yazıldı, testlendi, hiçbir ekranda kullanılmıyor.** Ya benimsensin
+      (özellik ekranları bunlara geçsin) ya da paketten çıkarılsın.
 
 ## Aşama 2 — Tasarım tokenları ve tema
 
-- [ ] T5.10 `AppSpacing` (4/8/12/16/24/32), `AppRadius`, `AppElevation`
-- [ ] T5.11 `AppColors` — risk renkleri (güvenli/dikkat/tehlike) + semantik roller
-- [ ] T5.12 `AppTypography` — ölçek + monospace stil (hex için)
-- [ ] T5.13 Material 3 açık tema
-- [ ] T5.14 Material 3 koyu tema
-- [ ] T5.15 Dinamik renk desteği (Android 12+), yedek tohum `#2563EB`
-- [ ] T5.16 `AppIcons` — kayıt tipi ikon eşlemesi (26 tip), araç ikonları,
-      teknoloji ikonları
+- [~] T5.10 `AppSpacing` ✅ · `AppRadius` ✅ · **`AppElevation` yok**
+- [x] T5.11 `AppColors` — risk renkleri (`RiskLevel`) + semantik roller
+- [x] T5.12 `AppTypography` — ölçek + monospace (hex) stili
+- [x] T5.13 Material 3 açık tema
+- [x] T5.14 Material 3 koyu tema
+- [ ] T5.15 **Dinamik renk desteği yok.** `dynamic_color` paketi eklenmedi,
+      `app.dart` içinde `TODO(T5.15)` duruyor. Buna rağmen ayarlar ekranında
+      "dinamik renk" anahtarı **görünüyor ve hiçbir şey yapmıyor** —
+      ya paket eklenmeli ya anahtar gizlenmeli.
+- [ ] T5.16 `AppIcons` — yok; ikonlar `tool_catalog`, `record_type_sheet` ve
+      `tag_info_view` içinde dağınık `Icons.*` sabitleri olarak duruyor
 
 ## Aşama 3 — Widget gövdeleri
 
-- [ ] T5.17 `NfcScanSheet` nabız animasyonu + durum geçişleri + haptik
-- [ ] T5.18 `DangerDialog` kaydırarak onay bileşeni
-- [ ] T5.19 `HexDumpView` — performans (uzun dump'ta `ListView.builder`),
-      seçilebilir metin, byte vurgulama, ekran okuyucu desteği
-- [ ] T5.20 Kalan widget'ların gövdeleri
-- [ ] T5.21 Widget kataloğu ekranı (`/settings/design-catalog`, hata ayıklama)
+- [x] T5.17 `NfcScanSheet` nabız animasyonu + durum geçişleri + haptik
+      (`AnimationController` + `HapticFeedback`)
+- [x] T5.18 `DangerDialog` kaydırarak onay bileşeni (`_dragPosition`)
+- [x] T5.19 `HexDumpView` — `ListView.builder` + `Semantics` desteği
+- [x] T5.20 Kalan widget'ların gövdeleri
+- [ ] T5.21 Widget kataloğu ekranı (`/settings/design-catalog`)
 
 ## Aşama 4 — Çeviriler (`localization`)
 
-- [ ] T5.22 `l10n.yaml` + `app_tr.arb` + `app_en.arb` kurulumu
-- [ ] T5.23 Ortak metinler: eylemler, durumlar, hatalar, onaylar
-- [ ] T5.24 Okuma ekranı metinleri
-- [ ] T5.25 Yazma ekranı + 26 kayıt tipi adı/açıklaması
-- [ ] T5.26 Araç ekranı + 25 araç adı/açıklaması/uyarısı
-- [ ] T5.27 **`NfcFailure` → kullanıcı mesajı eşlemesi** (`failure_messages.dart`)
-      — `sealed` üzerinde exhaustive `switch`, yeni hata eklenince derleme
-      hatası versin
-- [ ] T5.28 Teknik terim sözlüğü — TR karşılıkları tutarlı olsun
-      (tag=etiket, dump=bellek dökümü, lock=kilitleme, format=biçimlendirme)
-- [ ] T5.29 Dil değiştirme — uygulama yeniden başlatmadan
+- [-] T5.22 `l10n.yaml` + ARB — **kapsam dışı bırakıldı.** ARB akışı
+      `flutter gen-l10n` kod üretimi gerektiriyor, ADR-0003 codegen'i
+      yasaklıyor. Yerine elle yazılmış `AppStrings` arayüzü +
+      `strings_tr.dart` / `strings_en.dart` kullanılıyor (136 anahtar).
+      Yeni anahtar eklenince iki dil de derleme hatası verir — ARB'nin
+      sağladığı güvenceyi bu şekilde koruyoruz.
+- [x] T5.23 Ortak metinler: eylemler, durumlar, hatalar, onaylar
+- [x] T5.24 Okuma ekranı metinleri
+- [~] T5.25 Yazma ekranı — sayfa iskeleti çevrili ama **`feature_write`
+      içinde ~64 gömülü Türkçe metin var** (sihirbaz etiketleri, kayıt tipi
+      başlık/açıklamaları). EN'de çevrilmiyor.
+- [ ] T5.26 Araç ekranı — **`tool_catalog.dart` tamamen gömülü Türkçe**
+      (16 aracın başlık + açıklaması) ve `tool_detail_page` içinde ~58 metin
+      daha var. EN dilinde araçlar sekmesi hiç çevrilmiyor.
+- [x] T5.27 `NfcFailure` → kullanıcı mesajı eşlemesi (`failure_messages.dart`,
+      `sealed` üzerinde exhaustive `switch` + `actionLabelFor`)
+- [ ] T5.28 Teknik terim sözlüğü — yazılı bir sözlük yok
+- [x] T5.29 Dil değiştirme — yeniden başlatmadan (`MaterialApp.router.locale`
+      `settingsProvider`'dan besleniyor)
 
 ## Aşama 5 — Ayarlar (`feature_settings`)
 
-- [ ] T5.30 `SettingsController` — `SettingsRepository` arayüzü üzerinden
-- [ ] T5.31 Görünüm: tema (açık/koyu/sistem), dinamik renk anahtarı
-- [ ] T5.32 Dil seçimi (TR/EN/sistem)
-- [ ] T5.33 Geri bildirim: titreşim, ses, ikisi de kapatılabilir
-- [ ] T5.34 Tarama: otomatik geçmişe kaydet, tekrar okuma engeli süresi
-- [ ] T5.35 **Uzman modu** anahtarı — açıklama metni + ilk açılışta uyarı
-- [ ] T5.36 Güvenlik: "yıkıcı işlem öncesi otomatik yedek" (varsayılan açık),
-      "onay diyaloğunu uzman modunda basitleştir"
-- [ ] T5.37 Veri: geçmişi temizle, dump arşivini temizle, tümünü dışa aktar
-- [ ] T5.38 Hakkında: sürüm, lisanslar (`showLicensePage`), gizlilik metni
-- [ ] T5.39 Gizlilik metni — "hiçbir veri cihazdan çıkmaz" (doğruysa)
+- [x] T5.30 `SettingsController` — `SettingsRepository` arayüzü üzerinden
+- [~] T5.31 Görünüm — tema seçimi çalışıyor; **dinamik renk anahtarı ölü**
+      (bkz. T5.15)
+- [x] T5.32 Dil seçimi (TR/EN/sistem)
+- [~] T5.33 Geri bildirim — iki anahtar da var ama **hiçbiri etkili değil:**
+      `hapticFeedback` `NfcScanSheet`'e geçirilmiyor (widget varsayılan
+      `true` ile çalışıyor), `soundFeedback` kodda hiç okunmuyor
+- [~] T5.34 Tarama — "otomatik geçmişe kaydet" çalışıyor;
+      **"tekrar okuma engeli süresi" yok** (`duplicateScanCooldown` alanı
+      `AppSettings`'te duruyor ama ne UI'ı ne tüketicisi var)
+- [x] T5.35 **Uzman modu** anahtarı — açıklama metni + uyarı diyaloğu
+- [~] T5.36 Güvenlik — "otomatik yedek" anahtarı **görünüyor ama işlevi yok**
+      (bkz. T4.46 — hiçbir yıkıcı araç yedek almıyor);
+      "onay diyaloğunu basitleştir" (`simplifyConfirmationsInExpertMode`)
+      alanı var, **UI'ı da tüketicisi de yok**
+- [~] T5.37 Veri — toplu dışa/içe aktarma **geçmiş sekmesinde** var;
+      ayarlar ekranında "geçmişi temizle / arşivi temizle" yok
+      (`HistoryRepository.clear` ve `DumpRepository.clear` **hazır**)
+- [~] T5.38 Hakkında — sürüm + `showLicensePage` var, ama **sürüm `'0.1.0'`
+      olarak elle gömülü** (gerçek sürüm `0.1.5+7`). `package_info_plus`
+      zaten bağımlılık — oradan okunmalı.
+- [ ] T5.39 Gizlilik metni — yok
 
-## Aşama 6 — Erişilebilirlik & cila
+## Aşama 6 — Erişilebilirlik & cila (HİÇBİRİ YAPILMADI)
 
 - [ ] T5.40 Tüm dokunma hedefleri ≥ 48dp denetimi
-- [ ] T5.41 Ekran okuyucu etiketleri (`Semantics`) — özellikle hex dump
+- [ ] T5.41 Ekran okuyucu etiketleri — `HexDumpView` `Semantics` kullanıyor,
+      diğer ekranlarda denetim yapılmadı
 - [ ] T5.42 Metin ölçeklendirme %200 testi
 - [ ] T5.43 Kontrast denetimi (WCAG AA)
-- [ ] T5.44 Widget testleri — tema, danger dialog akışı, hex view
+- [ ] T5.44 Widget testleri — yalnızca `common_widgets_test.dart` var;
+      tema, `DangerDialog` akışı ve `HexDumpView` test edilmedi
 
 ---
 

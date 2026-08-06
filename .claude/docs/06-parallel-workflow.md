@@ -6,9 +6,9 @@
 
 | Track | Yazma yetkisi olan yollar |
 |---|---|
-| **T1 — Çekirdek** | `packages/core/nfc_core/**`<br>`packages/core/shared_utils/**`<br>`packages/services/nfc_transport/**`<br>`packages/services/storage/**`<br>`apps/nfc_toolkit/android/**`<br>`apps/nfc_toolkit/lib/src/di/**` |
+| **T1 — Çekirdek** | `packages/core/nfc_core/**`<br>`packages/core/shared_utils/**`<br>`packages/services/nfc_transport/**`<br>`packages/services/storage/**`<br>`apps/nfc_toolkit/android/**`<br>`apps/nfc_toolkit/lib/src/di/**`<br>`apps/nfc_toolkit/lib/src/update/**` (OTA)<br>`releases/**` (OTA manifesti) |
 | **T2 — Okuma** | `packages/features/feature_read/**`<br>`packages/features/feature_history/**` |
-| **T3 — Yazma** | `packages/features/feature_write/**`<br>`packages/services/ndef_codec/**` |
+| **T3 — Yazma** | `packages/features/feature_write/**`<br>`packages/services/ndef_codec/**`<br>`docs/v/**` (GitHub Pages vCard çözücü — kartlara yazılan kalıcı adres, TAŞIMA/SİLME) |
 | **T4 — Araçlar** | `packages/features/feature_tools/**`<br>`packages/services/tag_ops/**` |
 | **T5 — Tasarım** | `packages/core/design_system/**`<br>`packages/core/localization/**`<br>`packages/features/feature_settings/**` |
 | **Ortak (kilitli)** | `apps/nfc_toolkit/lib/main.dart`, `apps/nfc_toolkit/lib/src/app/**`, kök `pubspec.yaml`, `.claude/docs/**` → **yalnızca T1 düzenler** |
