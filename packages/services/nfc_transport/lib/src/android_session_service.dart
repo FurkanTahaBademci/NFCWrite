@@ -73,6 +73,10 @@ final class AndroidNfcSessionService implements NfcSessionService {
 
     final completer = Completer<Result<T>>();
 
+    // Yerel taraf sessiz nobeti kaldirsin — reader mode'u artik eklenti
+    // yonetecek (bkz. MainActivity.applyNfcClaim).
+    await _setNativeSessionActive(active: true);
+
     try {
       await platform.NfcManager.instance.startSession(
         pollingOptions: _toPollingOptions(polling),
@@ -86,6 +90,7 @@ final class AndroidNfcSessionService implements NfcSessionService {
       _sessionActive = true;
     } on Object catch (e, s) {
       _log.error('Oturum baslatilamadi', e, s);
+      await _setNativeSessionActive(active: false);
       return Err<T>(ErrorMapper.map(e, s));
     }
 
@@ -116,6 +121,7 @@ final class AndroidNfcSessionService implements NfcSessionService {
       }
 
       await stopSession();
+      await _setNativeSessionActive(active: true);
 
       try {
         await platform.NfcManager.instance.startSession(
@@ -129,6 +135,7 @@ final class AndroidNfcSessionService implements NfcSessionService {
         _sessionActive = true;
       } on Object catch (e, s) {
         _log.error('Surekli oturum baslatilamadi', e, s);
+        await _setNativeSessionActive(active: false);
         controller.add(Err<T>(ErrorMapper.map(e, s)));
         unawaited(controller.close());
       }
@@ -144,13 +151,34 @@ final class AndroidNfcSessionService implements NfcSessionService {
 
   @override
   Future<void> stopSession() async {
-    if (!_sessionActive) return;
-    _sessionActive = false;
+    if (_sessionActive) {
+      _sessionActive = false;
+      try {
+        await platform.NfcManager.instance.stopSession();
+      } on Object catch (e) {
+        // Oturum zaten kapanmis olabilir; kapatma hatasi cagirani
+        // ilgilendirmez.
+        _log.debug('stopSession yok sayildi: $e');
+      }
+    }
+
+    // Oturum bittiginde reader mode'u eklenti kapatir ve etiketi hicbir
+    // katman sahiplenmez olur. Yerel tarafa haber ver ki sessiz nobeti
+    // yeniden kursun — yoksa sistem "uygulama secin" bildirimi cikarir.
+    await _setNativeSessionActive(active: false);
+  }
+
+  /// Yerel tarafa oturum durumunu bildirir.
+  ///
+  /// Bu bayrak `MainActivity`'nin on plan NFC sahiplenmesini yonetir;
+  /// bkz. `apps/nfc_toolkit/android/.../MainActivity.kt`.
+  Future<void> _setNativeSessionActive({required bool active}) async {
     try {
-      await platform.NfcManager.instance.stopSession();
-    } on Object catch (e) {
-      // Oturum zaten kapanmis olabilir; kapatma hatasi cagirani ilgilendirmez.
-      _log.debug('stopSession yok sayildi: $e');
+      await _systemChannel.invokeMethod<void>('setNfcSessionActive', active);
+    } on MissingPluginException {
+      // Yerel taraf bagli degil (orn. birim testi). Sessiz gec.
+    } on PlatformException catch (e) {
+      _log.warning('NFC nobeti guncellenemedi', e);
     }
   }
 
