@@ -6,6 +6,7 @@ import 'package:nfc_core/nfc_core.dart';
 import 'package:shared_utils/shared_utils.dart';
 
 import 'providers.dart';
+import 'write_draft_store.dart';
 
 /// Yazma ekraninin durumu.
 final class WriteState {
@@ -15,6 +16,7 @@ final class WriteState {
     this.failure,
     this.lockAfterWrite = false,
     this.targetCapacityBytes,
+    this.isRestoringDraft = false,
   });
 
   /// Etikete yazilacak kayitlar, sirasiyla.
@@ -28,6 +30,13 @@ final class WriteState {
 
   /// Taranan hedef etiketin NDEF kapasitesi (byte). Henuz taranmadiysa null.
   final int? targetCapacityBytes;
+
+  /// Diskteki taslak henuz okunuyor mu?
+  ///
+  /// Uygulama acilisinda kisa bir sure true olur; bu sirada ekran "kayit yok"
+  /// yerine yukleniyor gostergesi cizer (aksi halde liste bir an bos gorunup
+  /// sonra dolar).
+  final bool isRestoringDraft;
 
   /// Kayitlarin etikette kaplayacagi toplam byte (TLV zarfi dahil).
   int get byteLength =>
@@ -43,6 +52,7 @@ final class WriteState {
     bool? lockAfterWrite,
     int? targetCapacityBytes,
     bool clearTargetCapacity = false,
+    bool? isRestoringDraft,
   }) => WriteState(
     records: records ?? this.records,
     phase: phase ?? this.phase,
@@ -51,6 +61,7 @@ final class WriteState {
     targetCapacityBytes: clearTargetCapacity
         ? null
         : (targetCapacityBytes ?? this.targetCapacityBytes),
+    isRestoringDraft: isRestoringDraft ?? this.isRestoringDraft,
   );
 }
 
@@ -60,6 +71,11 @@ enum WritePhase {
   probingTag,
   waitingForTag,
   writing,
+
+  /// Kayitlar yazildi, etiket kalici olarak salt-okunur yapiliyor.
+  ///
+  /// Yalnizca [WriteState.lockAfterWrite] acikken gorulur.
+  locking,
   success,
   failure,
 }
@@ -68,13 +84,54 @@ enum WritePhase {
 ///
 /// Su an yalnizca temel akis vardir (kayit ekle → yaz → dogrula).
 /// Coklu yazma, sablonlar ve sihirbazlar T3'un isi.
+///
+/// **Kalicilik:** Kayit listesi her degisiklikte [WriteDraftStore] uzerinden
+/// diske yazilir ve uygulama yeniden acildiginda geri yuklenir. Kullanici
+/// listeyi acikca temizlemedikce (bkz. [clear]) taslak kaybolmaz.
 final class WriteController extends Notifier<WriteState> {
+  static const AppLogger _log = AppLogger('write.controller');
+
+  /// Kalici taslak deposu. Depo baglanmamissa (orn. bazi testler) null olur
+  /// ve otomatik kayit sessizce devre disi kalir.
+  WriteDraftStore? _draftStore;
+
+  /// Taslak islerinin sirali kuyrugu: once yukleme, sonra her kayit.
+  ///
+  /// Zincir sayesinde iki kayit birbirinin ustune binmez ve yukleme bitmeden
+  /// kayit yazilmaz.
+  Future<void> _draftQueue = Future<void>.value();
+
+  /// Taslak diskten okunmadan once kullanici listeye dokundu mu?
+  ///
+  /// Dokunduysa okuma sonucu **uygulanmaz** — kullanicinin o anki islemi
+  /// (orn. gecmisten yukleme) daha guncel.
+  bool _touched = false;
+
+  bool _disposed = false;
+
   @override
-  WriteState build() => const WriteState();
+  WriteState build() {
+    _touched = false;
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
+
+    _draftStore = _resolveDraftStore();
+    if (_draftStore == null) return const WriteState();
+
+    // microtask: build() bitmeden state'e dokunmayalim.
+    _draftQueue = Future<void>.microtask(_restoreDraft);
+    return const WriteState(isRestoringDraft: true);
+  }
+
+  /// Bekleyen taslak islerinin (yukleme + kayit) bitmesini bekler.
+  ///
+  /// Testler icindir; UI bunu beklemek zorunda degildir.
+  Future<void> get draftSettled => _draftQueue;
 
   /// Listeye kayit ekler.
   void addRecord(NdefContent content) {
     state = state.copyWith(records: [...state.records, content]);
+    _persistDraft();
   }
 
   /// Verilen sirdaki kaydi gunceller.
@@ -83,12 +140,14 @@ final class WriteController extends Notifier<WriteState> {
     final records = [...state.records];
     records[index] = content;
     state = state.copyWith(records: records);
+    _persistDraft();
   }
 
   /// Verilen sirdaki kaydi siler.
   void removeRecord(int index) {
     final records = [...state.records]..removeAt(index);
     state = state.copyWith(records: records);
+    _persistDraft();
   }
 
   /// Kaydin yerini degistirir (surukle-birak siralama).
@@ -99,10 +158,16 @@ final class WriteController extends Notifier<WriteState> {
     final records = [...state.records];
     records.insert(newIndex, records.removeAt(oldIndex));
     state = state.copyWith(records: records);
+    _persistDraft();
   }
 
-  /// Tumunu temizler.
-  void clear() => state = const WriteState();
+  /// Tumunu temizler — kayitli taslak da silinir.
+  ///
+  /// Kalici veri gittigi icin ekran bunu onaysiz cagirmaz.
+  void clear() {
+    state = const WriteState();
+    _persistDraft();
+  }
 
   /// "Yazdiktan sonra kilitle" anahtarini degistirir.
   void setLockAfterWrite({required bool value}) =>
@@ -147,7 +212,23 @@ final class WriteController extends Notifier<WriteState> {
     final result = await session.runOnce<void>(
       onTag: (tag) async {
         state = state.copyWith(phase: WritePhase.writing);
-        return operations.writeNdef(tag, message);
+        final writeResult = await operations.writeNdef(tag, message);
+        if (writeResult case Err()) return writeResult;
+        if (!state.lockAfterWrite) return writeResult;
+
+        // GERI ALINAMAZ. Kullanici onayi yazma baslatilmadan once
+        // `WritePage` icinde `DangerDialog` ile alinir (ADR-0005).
+        state = state.copyWith(phase: WritePhase.locking);
+        _log.info('Yazma sonrasi kalici kilitleme uygulaniyor');
+        return operations.makeReadOnly(
+          tag,
+          ack: DangerAck.userConfirmed(
+            risk: OperationRisk.irreversible,
+            operationId: 'write_lock_after_write',
+            targetUidHex: bytesToHex(tag.uid),
+            backupTaken: false,
+          ),
+        );
       },
     );
 
@@ -186,7 +267,54 @@ final class WriteController extends Notifier<WriteState> {
     final message = _decodeNdefMessage(record.rawJson);
     if (message == null || message.records.isEmpty) return;
 
-    state = state.copyWith(records: NdefConverter.decodeAll(message));
+    state = state.copyWith(
+      records: NdefConverter.decodeAll(message),
+      isRestoringDraft: false,
+    );
+    _persistDraft();
+  }
+
+  // -------------------------------------------------------------------
+  // Taslak kaliciligi
+  // -------------------------------------------------------------------
+
+  WriteDraftStore? _resolveDraftStore() {
+    try {
+      return ref.read(writeDraftStoreProvider);
+    } on Object catch (e) {
+      // Depo baglanmamis (composition root disi bir kullanim). Ekran
+      // calismaya devam etsin, yalnizca otomatik kayit olmasin.
+      _log.warning('Taslak deposu yok — otomatik kayit devre disi', e);
+      return null;
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    final store = _draftStore;
+    if (store == null) return;
+
+    final records = await store.load();
+    if (_disposed) return;
+
+    // Yukleme suresi icinde kullanici bir sey yaptiysa uzerine yazma.
+    if (_touched || records.isEmpty) {
+      state = state.copyWith(isRestoringDraft: false);
+      return;
+    }
+    state = state.copyWith(records: records, isRestoringDraft: false);
+  }
+
+  void _persistDraft() {
+    _touched = true;
+    final store = _draftStore;
+    if (store == null) return;
+
+    final snapshot = List<NdefContent>.unmodifiable(state.records);
+    _draftQueue = _draftQueue
+        .then((_) => store.save(snapshot))
+        .catchError((Object error, StackTrace stackTrace) {
+          _log.error('Taslak kaydedilemedi', error, stackTrace);
+        });
   }
 
   NdefMessageEntity? _decodeNdefMessage(String? rawJson) {

@@ -44,11 +44,13 @@ class _WritePageState extends ConsumerState<WritePage> {
       final wasBusy =
           previous?.phase == WritePhase.probingTag ||
           previous?.phase == WritePhase.waitingForTag ||
-          previous?.phase == WritePhase.writing;
+          previous?.phase == WritePhase.writing ||
+          previous?.phase == WritePhase.locking;
       final isBusy =
           next.phase == WritePhase.probingTag ||
           next.phase == WritePhase.waitingForTag ||
-          next.phase == WritePhase.writing;
+          next.phase == WritePhase.writing ||
+          next.phase == WritePhase.locking;
 
       if (!wasBusy && isBusy) {
         _openScanSheet();
@@ -66,11 +68,13 @@ class _WritePageState extends ConsumerState<WritePage> {
             IconButton(
               icon: const Icon(Icons.delete_sweep_outlined),
               tooltip: l10n.actionDelete,
-              onPressed: controller.clear,
+              onPressed: _confirmClear,
             ),
         ],
       ),
-      body: state.isEmpty
+      body: state.isRestoringDraft
+          ? const _DraftLoading()
+          : state.isEmpty
           ? EmptyState(
               icon: Icons.edit_note_outlined,
               title: l10n.writeEmptyTitle,
@@ -133,19 +137,34 @@ class _WritePageState extends ConsumerState<WritePage> {
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: controller.write,
-                        icon: const Icon(Icons.nfc),
-                        label: Text(l10n.writeAction),
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LockAfterWriteSwitch(
+                          value: state.lockAfterWrite,
+                          onChanged: (value) =>
+                              controller.setLockAfterWrite(value: value),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _startWrite,
+                            icon: Icon(
+                              state.lockAfterWrite ? Icons.lock_outline : Icons.nfc,
+                            ),
+                            label: Text(l10n.writeAction),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-      floatingActionButton: state.isEmpty
+      floatingActionButton: state.isRestoringDraft
+          ? null
+          : state.isEmpty
           ? FloatingActionButton.extended(
               onPressed: _addRecord,
               icon: const Icon(Icons.add),
@@ -159,6 +178,66 @@ class _WritePageState extends ConsumerState<WritePage> {
           ? FloatingActionButtonLocation.centerFloat
           : FloatingActionButtonLocation.endFloat,
     );
+  }
+
+  /// Yazmayi baslatir.
+  ///
+  /// "Yazdiktan sonra kilitle" acikken islem **geri alinamaz** hale gelir;
+  /// bu yuzden yazma baslamadan once `DangerDialog` ile onay alinir
+  /// (ADR-0005 3. kapi). Kullanici vazgecerse hicbir sey yazilmaz.
+  Future<void> _startWrite() async {
+    final controller = ref.read(writeControllerProvider.notifier);
+
+    if (ref.read(writeControllerProvider).lockAfterWrite) {
+      final confirmation = await DangerDialog.show(
+        context,
+        title: 'Yazdıktan sonra kilitle',
+        description:
+            'Kayıtlar yazıldıktan hemen sonra etiket kalıcı olarak '
+            'salt-okunur yapılacak.',
+        risk: RiskLevel.danger,
+        warning:
+            'Bu işlem GERİ ALINAMAZ. Etiketin içeriğini bir daha '
+            'değiştiremez, silemez ve biçimlendiremezsiniz.',
+        // Kilitlemeden once yedek almak anlamsiz: NDEF icerigi zaten
+        // bu ekranda duruyor ve kilit sonrasi geri yazilamaz.
+        offerBackup: false,
+      );
+      if (confirmation == null || !confirmation.confirmed) return;
+    }
+
+    await controller.write();
+  }
+
+  /// Listeyi temizlemeden once onay ister.
+  ///
+  /// Kayitlar artik diske yazildigi icin "temizle" kalici veriyi siler —
+  /// tek dokunusla olmamali.
+  Future<void> _confirmClear() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.delete_sweep_outlined),
+        title: const Text('Kayıtları sil'),
+        content: const Text(
+          'Listedeki tüm kayıtlar ve kaydedilmiş taslak silinecek. '
+          'Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    ref.read(writeControllerProvider.notifier).clear();
   }
 
   Future<void> _addRecord() async {
@@ -210,6 +289,7 @@ class _WritePageState extends ConsumerState<WritePage> {
               WritePhase.probingTag => NfcScanPhase.scanning,
               WritePhase.waitingForTag => NfcScanPhase.scanning,
               WritePhase.writing => NfcScanPhase.working,
+              WritePhase.locking => NfcScanPhase.working,
               WritePhase.success => NfcScanPhase.success,
               WritePhase.failure => NfcScanPhase.failure,
               WritePhase.editing => NfcScanPhase.idle,
@@ -217,6 +297,7 @@ class _WritePageState extends ConsumerState<WritePage> {
             title: l10n.scanTitle,
             message: switch (state.phase) {
               WritePhase.writing => l10n.scanWorking,
+              WritePhase.locking => 'Etiket kalıcı olarak kilitleniyor...',
               WritePhase.probingTag => 'Kart kapasitesi okunuyor...',
               _ => l10n.scanHint,
             },
@@ -255,11 +336,51 @@ class _WritePageState extends ConsumerState<WritePage> {
       'iPhone kişi bağlantısı',
     UriContent() => 'Bağlantı',
     VCardContent() => 'vCard',
+    WifiContent(:final ssid) => 'Wi-Fi · $ssid',
     MimeContent(:final mimeType) => mimeType,
     ExternalContent() => 'Harici tip',
     EmptyContent() => 'Boş kayıt',
     RawContent() => 'Ham veri',
   };
+}
+
+/// "Yazdiktan sonra kilitle" anahtari.
+///
+/// Acikken yazma islemi **geri alinamaz** hale gelir; anahtar bu yuzden
+/// tehlike rengiyle ve acik uyariyla gosterilir. Asil onay yazma
+/// baslatilirken `DangerDialog` ile alinir.
+class _LockAfterWriteSwitch extends StatelessWidget {
+  const _LockAfterWriteSwitch({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dangerColor = AppColors.forRisk(RiskLevel.danger, theme.brightness);
+
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      secondary: Icon(
+        value ? Icons.lock_outline : Icons.lock_open_outlined,
+        color: value ? dangerColor : theme.colorScheme.onSurfaceVariant,
+      ),
+      title: const Text('Yazdıktan sonra kilitle'),
+      subtitle: Text(
+        value
+            ? 'GERİ ALINAMAZ — etiket bir daha değiştirilemez'
+            : 'Etiket yazılabilir kalır',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: value ? dangerColor : theme.colorScheme.onSurfaceVariant,
+          fontWeight: value ? FontWeight.w600 : null,
+        ),
+      ),
+      value: value,
+      onChanged: onChanged,
+    );
+  }
 }
 
 class _CapacitySection extends StatelessWidget {
@@ -298,6 +419,26 @@ class _CapacitySection extends StatelessWidget {
               total == null ? 'Kart kapasitesini tara' : 'Tekrar tara',
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Icon(
+                Icons.cloud_done_outlined,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  'Kayıtlar otomatik saklanır — uygulamayı kapatsanız da '
+                  'kaybolmaz.',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -305,5 +446,31 @@ class _CapacitySection extends StatelessWidget {
 
   void _handleProbeTap() {
     onProbe();
+  }
+}
+
+/// Kaydedilmis taslak diskten okunurken gosterilir.
+class _DraftLoading extends StatelessWidget {
+  const _DraftLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Kayıtlı taslak yükleniyor...',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
