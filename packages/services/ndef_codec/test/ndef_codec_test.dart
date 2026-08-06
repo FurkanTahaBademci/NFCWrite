@@ -234,4 +234,105 @@ void main() {
       expect(message.byteLengthOnTag, message.byteLength + 3);
     });
   });
+
+  group('Wi-Fi (WSC)', () {
+    test('cift yonlu: sifreli ag', () {
+      const content = WifiContent(
+        ssid: 'Ofis Ağı',
+        password: 'gizli-parola-123',
+        auth: WifiAuthType.wpa2Personal,
+      );
+
+      final decoded = NdefConverter.decode(NdefConverter.encode(content));
+
+      expect(decoded, isA<WifiContent>());
+      final wifi = decoded as WifiContent;
+      expect(wifi.ssid, 'Ofis Ağı');
+      expect(wifi.password, 'gizli-parola-123');
+      expect(wifi.auth, WifiAuthType.wpa2Personal);
+    });
+
+    test('cift yonlu: acik ag parola tasimaz', () {
+      const content = WifiContent(
+        ssid: 'Misafir',
+        // Acik agda parola verilse bile yazilmamali.
+        password: 'yok-sayilmali',
+        auth: WifiAuthType.open,
+      );
+
+      final wifi =
+          NdefConverter.decode(NdefConverter.encode(content)) as WifiContent;
+
+      expect(wifi.ssid, 'Misafir');
+      expect(wifi.password, isEmpty);
+      expect(wifi.auth, WifiAuthType.open);
+    });
+
+    test('dogru MIME tipi ve TNF ile kodlanir', () {
+      const content = WifiContent(
+        ssid: 'A',
+        password: 'parola12',
+        auth: WifiAuthType.wpa2Personal,
+      );
+
+      final record = NdefConverter.encode(content);
+
+      expect(record.typeNameFormat, NdefTypeNameFormat.media);
+      expect(record.typeAsString, 'application/vnd.wfa.wsc');
+    });
+
+    test('yuk Credential (0x100E) zarfiyla baslar', () {
+      final payload = WifiWscCodec.encode(
+        ssid: 'Test',
+        password: 'parola12',
+        auth: WifiAuthType.wpa2Personal,
+      );
+
+      // 0x10 0x0E = Credential, ardindan 2 byte uzunluk.
+      expect(payload[0], 0x10);
+      expect(payload[1], 0x0E);
+      final declaredLength = (payload[2] << 8) | payload[3];
+      expect(declaredLength, payload.length - 4);
+    });
+
+    test('SSID 32 byte siniri asilirsa reddedilir', () {
+      expect(
+        () => WifiWscCodec.encode(
+          ssid: 'x' * 33,
+          password: 'parola12',
+          auth: WifiAuthType.wpa2Personal,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('kisa parola dogrulamada yakalanir', () {
+      expect(
+        WifiWscCodec.validatePassword('kisa', WifiAuthType.wpa2Personal),
+        isNotNull,
+      );
+      expect(
+        WifiWscCodec.validatePassword('yeterince-uzun', WifiAuthType.wpa2Personal),
+        isNull,
+      );
+      // Acik agda parola hic aranmaz.
+      expect(WifiWscCodec.validatePassword('', WifiAuthType.open), isNull);
+    });
+
+    test('taninmayan auth degeri WPA2ye duser', () {
+      final payload = WifiWscCodec.encode(
+        ssid: 'Test',
+        password: 'parola12',
+        auth: WifiAuthType.wpa2Personal,
+      );
+      final network = WifiWscCodec.decode(payload);
+
+      expect(network, isNotNull);
+      expect(network!.auth, WifiAuthType.wpa2Personal);
+    });
+
+    test('SSID yoksa cozumleme null doner', () {
+      expect(WifiWscCodec.decode(Uint8List(0)), isNull);
+    });
+  });
 }

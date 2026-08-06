@@ -39,6 +39,10 @@ abstract final class RecordTypeSheet {
         return Navigator.of(context).push<NdefContent>(
           MaterialPageRoute(builder: (_) => _VCardInputPage(initial: content)),
         );
+      case WifiContent():
+        return Navigator.of(context).push<NdefContent>(
+          MaterialPageRoute(builder: (_) => _WifiInputPage(initial: content)),
+        );
       default:
         return Future<NdefContent?>.value(null);
     }
@@ -370,6 +374,14 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       searchTerms: const <String>['kartvizit', 'contact', 'vcard'],
       onTap: () => _openVCardEditor(context),
     ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.network,
+      icon: Icons.wifi,
+      title: 'Wi-Fi ağı',
+      subtitle: 'Dokunan telefon ağa bağlanmayı önerir',
+      searchTerms: const <String>['wifi', 'wi-fi', 'ag', 'ağ', 'kablosuz'],
+      onTap: () => _openWifiEditor(context),
+    ),
   ];
 
   Future<void> _openEditor(BuildContext context, _EditorConfig config) async {
@@ -387,6 +399,14 @@ class _RecordTypePageState extends State<_RecordTypePage> {
     if (contents == null || !context.mounted) return;
     Navigator.of(context).pop(contents);
   }
+
+  Future<void> _openWifiEditor(BuildContext context) async {
+    final content = await Navigator.of(context).push<NdefContent>(
+      MaterialPageRoute(builder: (_) => const _WifiInputPage()),
+    );
+    if (content == null || !context.mounted) return;
+    Navigator.of(context).pop(<NdefContent>[content]);
+  }
 }
 
 enum _RecordTypeCategory {
@@ -394,6 +414,7 @@ enum _RecordTypeCategory {
   contact('İletişim'),
   location('Konum'),
   web('Web ve Uygulama'),
+  network('Ağ'),
   payment('Ödeme');
 
   const _RecordTypeCategory(this.label);
@@ -500,6 +521,179 @@ class _RecordInputPageState extends State<_RecordInputPage> {
     final value = _controller.text.trim();
     if (value.isEmpty) return;
     Navigator.of(context).pop(widget.config.build(value));
+  }
+}
+
+/// Wi-Fi agi sihirbazi.
+///
+/// Uretilen kayit `application/vnd.wfa.wsc` MIME'idir; Android etikete
+/// dokunuldugunda aga baglanmayi onerir. iOS yalnizca Kisayollar
+/// uzerinden destekler — bu yuzden ekranda kisa bir not var.
+class _WifiInputPage extends StatefulWidget {
+  const _WifiInputPage({this.initial});
+
+  final WifiContent? initial;
+
+  @override
+  State<_WifiInputPage> createState() => _WifiInputPageState();
+}
+
+class _WifiInputPageState extends State<_WifiInputPage> {
+  late final TextEditingController _ssid;
+  late final TextEditingController _password;
+  late WifiAuthType _auth;
+  bool _obscurePassword = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    _ssid = TextEditingController(text: initial?.ssid ?? '');
+    _password = TextEditingController(text: initial?.password ?? '');
+    _auth = initial?.auth ?? WifiAuthType.wpa2Personal;
+  }
+
+  @override
+  void dispose() {
+    _ssid.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Wi-Fi ağı')),
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          TextField(
+            controller: _ssid,
+            autofocus: true,
+            maxLength: WifiWscCodec.maxSsidBytes,
+            decoration: const InputDecoration(
+              labelText: 'Ağ adı (SSID)',
+              helperText: 'Büyük/küçük harf duyarlıdır',
+              prefixIcon: Icon(Icons.wifi),
+            ),
+            onChanged: (_) => setState(() => _error = null),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          DropdownButtonFormField<WifiAuthType>(
+            initialValue: _auth,
+            decoration: const InputDecoration(
+              labelText: 'Güvenlik',
+              prefixIcon: Icon(Icons.shield_outlined),
+            ),
+            items: [
+              for (final type in WifiAuthType.values)
+                DropdownMenuItem(value: type, child: Text(type.label)),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _auth = value;
+                _error = null;
+              });
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          if (_auth.requiresPassword)
+            TextField(
+              controller: _password,
+              obscureText: _obscurePassword,
+              maxLength: WifiWscCodec.maxPasswordLength,
+              decoration: InputDecoration(
+                labelText: 'Parola',
+                helperText:
+                    'En az ${WifiWscCodec.minPasswordLength} karakter',
+                prefixIcon: const Icon(Icons.key_outlined),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              onChanged: (_) => setState(() => _error = null),
+            )
+          else
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.lock_open_outlined),
+              title: Text('Açık ağ — parola yazılmaz'),
+            ),
+
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _error!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: AppSpacing.lg),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      'Parola etikete düz metin olarak yazılır. Etiketi '
+                      'okuyan herkes ağ parolasını görebilir.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xl),
+          FilledButton.icon(
+            onPressed: _submit,
+            icon: const Icon(Icons.check),
+            label: const Text('Ekle'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() {
+    final ssid = _ssid.text.trim();
+    if (ssid.isEmpty) {
+      setState(() => _error = 'Ağ adı boş olamaz');
+      return;
+    }
+
+    final password = _password.text;
+    final passwordError = WifiWscCodec.validatePassword(password, _auth);
+    if (passwordError != null) {
+      setState(() => _error = passwordError);
+      return;
+    }
+
+    Navigator.of(context).pop(
+      WifiContent(
+        ssid: ssid,
+        password: _auth.requiresPassword ? password : '',
+        auth: _auth,
+      ),
+    );
   }
 }
 

@@ -12,3 +12,4 @@ export 'src/ndef_content.dart';
 export 'src/ndef_converter.dart';
 export 'src/uri_prefixes.dart';
 export 'src/vcard_share_link.dart';
+export 'src/wifi_wsc_codec.dart';

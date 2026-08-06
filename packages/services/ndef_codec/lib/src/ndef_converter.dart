@@ -6,6 +6,7 @@ import 'package:nfc_core/nfc_core.dart';
 
 import 'ndef_content.dart';
 import 'uri_prefixes.dart';
+import 'wifi_wsc_codec.dart';
 
 /// Iyi bilinen kayit tipleri (TNF 1).
 abstract final class WellKnownType {
@@ -45,6 +46,17 @@ abstract final class NdefConverter {
           final decoded = _decodeVCard(record.payload);
           if (decoded != null) return decoded;
         }
+        if (mimeType == WifiWscCodec.mimeType) {
+          final network = WifiWscCodec.decode(record.payload);
+          if (network != null) {
+            return WifiContent(
+              ssid: network.ssid,
+              password: network.password,
+              auth: network.auth,
+              encryption: network.encryption,
+            );
+          }
+        }
         return MimeContent(mimeType: mimeType, data: record.payload);
 
       case NdefTypeNameFormat.absoluteUri:
@@ -80,6 +92,12 @@ abstract final class NdefConverter {
     TextContent() => _encodeText(content),
     UriContent() => _encodeUri(content),
     VCardContent() => _encodeVCard(content),
+    WifiContent() => NdefRecordEntity(
+      typeNameFormat: NdefTypeNameFormat.media,
+      type: Uint8List.fromList(utf8.encode(WifiWscCodec.mimeType)),
+      identifier: Uint8List(0),
+      payload: content.toPayload(),
+    ),
     MimeContent() => NdefRecordEntity(
       typeNameFormat: NdefTypeNameFormat.media,
       type: Uint8List.fromList(utf8.encode(content.mimeType)),

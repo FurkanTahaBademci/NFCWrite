@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
+import 'wifi_wsc_codec.dart';
+
 /// Bir NDEF kaydinin **cozumlenmis**, anlamli hali.
 ///
 /// `sealed` — yeni bir tip eklendiginde onu ele almayan her `switch`
@@ -182,6 +184,55 @@ final class MimeContent extends NdefContent {
 
   @override
   String toString() => 'MimeContent($mimeType, ${data.length} byte)';
+}
+
+/// Wi-Fi ag kaydi (TNF 2, `application/vnd.wfa.wsc`).
+///
+/// Telefon etikete dokundugunda aga baglanmayi onerir. Yuk WSC TLV
+/// formatindadir; kodlama/cozme [WifiWscCodec] icindedir.
+final class WifiContent extends NdefContent {
+  const WifiContent({
+    required this.ssid,
+    required this.password,
+    required this.auth,
+    this.encryption,
+  });
+
+  /// Ag adi (SSID).
+  final String ssid;
+
+  /// Ag parolasi. Acik aglarda bos.
+  final String password;
+
+  final WifiAuthType auth;
+
+  /// Sifreleme tipi. Null ise [auth] icin varsayilan kullanilir.
+  final WifiEncryptionType? encryption;
+
+  /// WSC yukune cevirir.
+  Uint8List toPayload() => WifiWscCodec.encode(
+    ssid: ssid,
+    password: password,
+    auth: auth,
+    encryption: encryption,
+  );
+
+  @override
+  String get summary => '$ssid · ${auth.label}';
+
+  @override
+  bool operator ==(Object other) =>
+      other is WifiContent &&
+      other.ssid == ssid &&
+      other.password == password &&
+      other.auth == auth &&
+      other.encryption == encryption;
+
+  @override
+  int get hashCode => Object.hash(ssid, password, auth, encryption);
+
+  @override
+  String toString() => 'WifiContent($ssid, ${auth.name})';
 }
 
 /// Harici tip kaydi (TNF 4) — orn. Android Application Record.

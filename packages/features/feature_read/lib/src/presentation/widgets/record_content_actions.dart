@@ -38,6 +38,16 @@ class RecordContentActions extends StatelessWidget {
           onTap: () => _shareVCard(content as VCardContent),
         ),
       ],
+      // Cozumlenebilen WSC yukleri artik `WifiContent` olarak gelir.
+      WifiContent() => [
+        _ActionChip(
+          label: l10n.readActionWifiInfo,
+          icon: Icons.wifi,
+          onTap: () => _showWifiContentDialog(context, content as WifiContent),
+        ),
+      ],
+      // Cozumlenemeyen (bozuk ya da SSID'siz) WSC yukleri `MimeContent`
+      // olarak duser — yine de ham cozumlemeyi deneriz.
       MimeContent(:final mimeType, :final data)
           when mimeType.trim().toLowerCase() == _wifiMimeType => [
         _ActionChip(
@@ -94,6 +104,37 @@ class RecordContentActions extends StatelessWidget {
       ShareParams(
         files: [
           XFile.fromData(bytes, mimeType: 'text/vcard', path: 'contact.vcf'),
+        ],
+      ),
+    );
+  }
+
+  /// Cozumlenmis `WifiContent` icin bilgi diyalogu.
+  ///
+  /// Otomatik baglanma yapilamaz: Android bunun icin sistem izni ister ve
+  /// Flutter tarafinda karsiligi yok. Kullanici bilgileri gorup elle
+  /// baglanir (bkz. T2.12).
+  void _showWifiContentDialog(BuildContext context, WifiContent wifi) {
+    final l10n = AppLocalizations.of(context);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.readWifiDialogTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _WifiRow(label: l10n.readWifiSsid, value: wifi.ssid),
+            if (wifi.password.isNotEmpty)
+              _WifiRow(label: l10n.readWifiPassword, value: wifi.password),
+            _WifiRow(label: l10n.readWifiSecurity, value: wifi.auth.label),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.actionClose),
+          ),
         ],
       ),
     );
