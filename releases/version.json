@@ -1,8 +1,9 @@
 {
-  "version": "0.1.5",
-  "buildNumber": 7,
-  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.5/nfc_toolkit-v0.1.5+7.apk",
+  "version": "0.1.6",
+  "buildNumber": 8,
+  "apkUrl": "https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.6/nfc_toolkit-v0.1.6+8.apk",
   "forceUpdate": false,
-  "sha256": "df63c460a1de1b8fccf4dc9563cd17dab47a50b002c2525b7a6527f399304ec0",
-  "releaseNotes": "- MIFARE Classic magic (Gen2/CUID) kart klonlama ve sektör 0 / blok yazma araçları eklendi\n- MIFARE Classic bellek dökümü + varsayılan anahtar taraması, ICODE SLIX/SLIX2 tanımlama\n- Sürekli tarama modu ve kayıt içeriği eylemleri (bağlantı / ara / e-posta / harita / Wi-Fi / vCard)\n- Geçmiş arama + filtreler, döküm arşivi, JSON dışa/içe aktarma\n- iPhone uyumlu vCard paylaşımı ve genişletilmiş yazma kayıt tipleri"
+  "sha256": "b621b7ce3c4ac2297c9f5936b65511aa27c96c4d0bde4de0e4c5ca65d7dce0f1",
+  "releaseNotes": "- Wi-Fi ağı kayıt tipi: etikete SSID + parola yazın, dokunan telefon ağa bağlanmayı önersin\n- \"Yazdıktan sonra kilitle\" artık çalışıyor — çift onaylı, geri alınamaz\n- Yazma listesi otomatik saklanıyor; uygulamayı kapatsanız da kaybolmuyor\n- Yıkıcı işlemlerden önce otomatik tam yedek alınıyor, yedek alınamazsa işlem iptal\n- Okuma ekranında yapılandırma, kilit durumu ve orijinallik imzası bölümleri\n- MIFARE Classic varsayılan anahtar taraması araç listesinden kullanılabilir\n- Yeni uygulama ikonu ve Android 13+ temalı ikon desteği\n- Uygulama açıkken etiket okutulunca çıkan \"uygulama seçin\" bildirimi giderildi",
+  "releaseNotesEn": "- Wi-Fi network record type: write SSID + password to a tag and let a phone offer to join\n- \"Lock after write\" now works — double-confirmed and irreversible\n- The write list is saved automatically and survives closing the app\n- Automatic full backup before destructive operations; the operation is cancelled if it fails\n- Configuration, lock status and originality signature sections on the read screen\n- MIFARE Classic default key scan is available from the tool list\n- New app icon with Android 13+ themed icon support\n- Fixed the \"open with\" prompt when tapping a tag while the app was open"
 }
