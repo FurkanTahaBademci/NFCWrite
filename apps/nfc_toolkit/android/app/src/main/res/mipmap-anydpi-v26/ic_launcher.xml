@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon (API 26+). Katmanlar 108dp tuvaldedir; launcher ortadaki
+  72dp'yi maskeleyerek gosterir, 66dp guvenli alanin disina tasan her sey
+  kirpilabilir. Uretim: tool/generate_app_icons.py
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <!-- Android 13+ temali ikon: sistem bu katmani duvar kagidi renkleriyle boyar. -->
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>

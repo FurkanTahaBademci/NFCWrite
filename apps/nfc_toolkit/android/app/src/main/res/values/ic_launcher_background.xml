@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Marka teali; logo.png'den ornekleme ile alindi. -->
+    <color name="ic_launcher_background">#46B5C9</color>
+</resources>
