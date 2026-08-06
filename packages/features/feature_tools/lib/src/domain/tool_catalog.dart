@@ -224,6 +224,7 @@ abstract final class ToolCatalog {
       category: ToolCategory.safe,
       risk: RiskLevel.safe,
       taskId: 'T4.32',
+      implemented: true,
       expertOnly: true,
     ),
     ToolDefinition(

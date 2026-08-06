@@ -54,3 +54,30 @@ ayarlardan uzman modu açılmadan **arayüzde görünmez**.
 ## Kural
 
 **Yeni bir yıkıcı işlem eklerken bu dört kapıdan geçmiyorsa PR reddedilir.**
+
+---
+
+## Uygulama durumu — 2026-08-06 denetimi
+
+Karar geçerli; **dört kapı da uygulandı.**
+
+| Kapı | Durum |
+|---|---|
+| 1. `DangerAck` kod katmanı | ✅ Tüm yıkıcı `TagOperations` metodları istiyor |
+| 2. **Otomatik yedek** | ✅ Uygulandı (2026-08-06) |
+| 3. `DangerDialog` UI onayı | ✅ Kaydırarak onay + UID + risk rozeti |
+| 4. Uzman modu kapısı | ✅ `ToolCatalog.byCategory(expertMode:)` |
+
+2. kapı `ToolDetailPage._ensureBackup` / `_saveBackup` ile uygulandı:
+yıkıcı işlemden önce `readMemory()` alınıp `DumpRepository.add()` ile
+arşive yazılır (`DumpReason.automaticBackup`). Yedek alınamazsa işlem
+**varsayılan olarak iptal** edilir; kullanıcı açıkça "Yedeksiz devam et"
+derse geçilir. Üç akış da kapsanır: normal yıkıcı araçlar, "Etiketi
+kopyala" ve "Magic kart klonla" — son ikisinde **hedef** etiket yedeklenir.
+
+`DangerAck.backupTaken` artık gerçek sonucu taşır. Önceden bu alan her zaman
+onay diyaloğundaki anahtarın değeriydi; yedek alınmadığı halde `true`
+görünüyordu — kayıt yanıltıcıydı.
+
+**Yeni yıkıcı araç eklerken** `_ensureBackup` çağrısını atlama; dördüncü
+kapı olan uzman modu kadar zorunludur.

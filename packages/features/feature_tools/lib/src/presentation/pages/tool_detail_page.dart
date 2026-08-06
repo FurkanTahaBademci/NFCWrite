@@ -391,6 +391,7 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
           description: tool.description,
           risk: tool.risk,
           targetUid: formatUid(tag.uid),
+          offerBackup: _autoBackupEnabled,
           warning: tool.risk == RiskLevel.danger
               ? 'Bu işlem geri alınamaz. Etiket kalıcı olarak değişecek.'
               : null,
@@ -398,6 +399,15 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
         if (confirmation == null || !confirmation.confirmed) {
           return const Err(OperationCancelled());
         }
+
+        // ADR-0005 2. kapi: yikici islemden once otomatik yedek.
+        final backup = await _ensureBackup(
+          tag: tag,
+          operations: operations,
+          label: tool.title,
+          requested: confirmation.takeBackup,
+        );
+        if (backup case Err(:final failure)) return Err(failure);
 
         final ack = DangerAck.userConfirmed(
           risk: switch (tool.risk) {
@@ -408,7 +418,7 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
           },
           operationId: tool.id,
           targetUidHex: uidHex,
-          backupTaken: confirmation.takeBackup,
+          backupTaken: (backup as Ok<bool>).value,
         );
 
         return _runDestructiveTool(tool, tag, operations, ack);
@@ -423,6 +433,142 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
         Err(:final failure) => l10n.messageFor(failure),
       };
     });
+
+    // Islem sirasinda otomatik yedek alinmis olabilir — arsiv listesi
+    // (ve "Dokumu geri yukle" secicisi) guncel kalsin.
+    await _loadAvailableDumps();
+  }
+
+  /// Anahtar tarama raporunu okunabilir metne cevirir.
+  ///
+  /// Acilamayan sektorler de listelenir — kullanicinin hangi sektorde
+  /// ozel anahtar oldugunu gormesi tarama sonucunun asil degeridir.
+  String _formatKeyScanReport(MifareKeyScanReport report) {
+    final lines = <String>[
+      '${report.unlockedCount}/${report.totalSectors} sektör açıldı',
+      '',
+    ];
+
+    for (var sector = 0; sector < report.totalSectors; sector++) {
+      final entry = report.sectorKeys[sector];
+      if (entry == null) {
+        lines.add('S$sector: — (bilinen anahtar yok)');
+        continue;
+      }
+      final keyName = entry.type == MifareKeyType.keyA ? 'A' : 'B';
+      lines.add('S$sector: $keyName ${bytesToHex(entry.key)}');
+    }
+
+    if (report.allUnlocked) {
+      lines
+        ..add('')
+        ..add('Tüm sektörler varsayılan anahtarlarla açıldı — '
+            'bu kart korumasız.');
+    }
+
+    return lines.join('\n');
+  }
+
+  /// Ayarlardan "yikici islem oncesi otomatik yedek" acik mi?
+  bool get _autoBackupEnabled => ref
+      .read(settingsRepositoryProvider)
+      .current
+      .autoBackupBeforeDestructive;
+
+  /// ADR-0005'in **2. kapisi**: yikici islemden once tam bellek dokumu alip
+  /// dokum arsivine yazar.
+  ///
+  /// - Ayar kapaliysa ya da kullanici onay diyalogunda yedegi kapattiysa
+  ///   hic denenmez, `Ok(false)` doner.
+  /// - Yedek basariyla alinirsa `Ok(true)`.
+  /// - Yedek **alinamazsa** islem varsayilan olarak iptal edilir; kullanici
+  ///   acikca "yedeksiz devam et" derse `Ok(false)` ile gecilir, aksi halde
+  ///   `Err(OperationCancelled())`.
+  ///
+  /// Donen bool dogrudan [DangerAck.backupTaken] alanina yazilir — bu alan
+  /// gercegi soylemek zorunda, aksi halde kayit yaniltici olur.
+  Future<Result<bool>> _ensureBackup({
+    required NfcTagHandle tag,
+    required TagOperations operations,
+    required String label,
+    required bool requested,
+  }) async {
+    if (!requested || !_autoBackupEnabled) return const Ok(false);
+
+    final failure = await _saveBackup(
+      tag: tag,
+      operations: operations,
+      label: label,
+    );
+    if (failure == null) return const Ok(true);
+
+    if (!mounted) return const Err(OperationCancelled());
+    final proceed = await _confirmWithoutBackup(failure);
+    return proceed ? const Ok(false) : const Err(OperationCancelled());
+  }
+
+  /// Dokumu alip arsive yazar. Basariliysa `null`, aksi halde sebebi doner.
+  Future<NfcFailure?> _saveBackup({
+    required NfcTagHandle tag,
+    required TagOperations operations,
+    required String label,
+  }) async {
+    final memoryResult = await operations.readMemory(tag);
+    if (memoryResult case Err(:final failure)) return failure;
+    final memory = (memoryResult as Ok<TagMemory>).value;
+
+    // Yonga adi yalnizca etiketleme icin — okunamazsa yedegi engellemez.
+    final identity = (await operations.identify(tag)).valueOrNull;
+
+    final saveResult = await ref
+        .read(dumpRepositoryProvider)
+        .add(
+          TagDump(
+            id: null,
+            uidHex: bytesToHex(tag.uid),
+            createdAt: DateTime.now(),
+            bytes: memory.bytes,
+            pageSize: memory.pageSize,
+            startPage: memory.startPage,
+            label: '$label öncesi yedek',
+            chipDisplayName: identity?.displayName,
+            reason: DumpReason.automaticBackup,
+          ),
+        );
+
+    return switch (saveResult) {
+      Ok() => null,
+      Err(:final failure) => failure,
+    };
+  }
+
+  /// Yedek alinamadiginda kullaniciya sorar. Varsayilan cevap **hayir**.
+  Future<bool> _confirmWithoutBackup(NfcFailure failure) async {
+    final l10n = AppLocalizations.of(context);
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.backup_outlined),
+        title: const Text('Yedek alınamadı'),
+        content: Text(
+          '${l10n.messageFor(failure)}\n\n'
+          'Yedek olmadan devam ederseniz bu işlemi geri almanız '
+          'mümkün olmayabilir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Yedeksiz devam et'),
+          ),
+        ],
+      ),
+    );
+    return proceed ?? false;
   }
 
   Future<Result<String>> _runSafeTool(
@@ -446,6 +592,9 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
         return result.map(
           (valid) => valid ? 'İmza geçerli' : 'İmza doğrulanamadı',
         );
+      case 'mifare_keys':
+        final result = await operations.scanMifareClassicKeys(tag);
+        return result.map(_formatKeyScanReport);
       default:
         return Err(NotImplementedYet(tool.taskId));
     }
@@ -606,16 +755,26 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
           description: 'Kaynak etiketin NDEF içeriği bu etikete yazılacak.',
           risk: RiskLevel.caution,
           targetUid: formatUid(targetTag.uid),
+          offerBackup: _autoBackupEnabled,
         );
         if (confirmation == null || !confirmation.confirmed) {
           return const Err(OperationCancelled());
         }
 
+        // Hedef etiketin mevcut icerigi uzerine yazilacak — once yedekle.
+        final backup = await _ensureBackup(
+          tag: targetTag,
+          operations: operations,
+          label: 'Etiketi kopyala',
+          requested: confirmation.takeBackup,
+        );
+        if (backup case Err(:final failure)) return Err(failure);
+
         final ack = DangerAck.userConfirmed(
           risk: OperationRisk.content,
           operationId: 'copy_tag',
           targetUidHex: bytesToHex(targetTag.uid),
-          backupTaken: confirmation.takeBackup,
+          backupTaken: (backup as Ok<bool>).value,
         );
 
         final result = await operations.copyNdefTo(
@@ -681,16 +840,26 @@ class _ToolDetailPageState extends ConsumerState<ToolDetailPage> {
               'Hedef, blok 0 yazılabilir bir magic (Gen2/CUID) kart olmalı.',
           risk: RiskLevel.warning,
           targetUid: formatUid(targetTag.uid),
+          offerBackup: _autoBackupEnabled,
         );
         if (confirmation == null || !confirmation.confirmed) {
           return const Err(OperationCancelled());
         }
 
+        // Hedef magic kartin mevcut icerigi tamamen ezilecek — once yedekle.
+        final backup = await _ensureBackup(
+          tag: targetTag,
+          operations: operations,
+          label: 'Magic kart klonla',
+          requested: confirmation.takeBackup,
+        );
+        if (backup case Err(:final failure)) return Err(failure);
+
         final ack = DangerAck.userConfirmed(
           risk: OperationRisk.config,
           operationId: 'mifare_clone',
           targetUidHex: bytesToHex(targetTag.uid),
-          backupTaken: confirmation.takeBackup,
+          backupTaken: (backup as Ok<bool>).value,
         );
 
         final result = await operations.cloneMifareClassicTo(
