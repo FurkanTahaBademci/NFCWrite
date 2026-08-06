@@ -15,9 +15,15 @@
   analytics yüklenmez. Kardeş sayfa `v/index.html` (vCard çözücü) ile aynı
   tasarım dilini ve dil tercihini (localStorage: nfcv.lang) paylaşır.
 
-  GÜNCELLERKEN: sürüm numarası, APK bağlantısı, SHA-256 ve sürüm notları
-  `releases/version.json` ile aynı olmalı. Pages yalnızca docs/ klasörünü
-  yayımladığı için o dosya buradan okunamaz — elle eşitle.
+  SÜRÜM BİLGİSİ ELLE GÜNCELLENMEZ. Sürüm numarası, APK bağlantısı, SHA-256
+  ve değişiklik listesi sayfa açılırken `releases/version.json` dosyasından
+  (raw.githubusercontent, main dalı) çekilir — uygulamanın güncelleme
+  denetiminin okuduğu dosyanın aynısı. Yeni sürüm çıkarırken yalnızca o
+  dosyayı güncelle, burası kendiliğinden takip eder.
+
+  HTML'de duran değerler yalnızca YEDEK: istek başarısız olursa sayfa son
+  bilinen sürümü göstermeye devam eder. Bu yüzden sayfa artık tek bir dış
+  istek yapıyor (yalnızca manifest); font/script/analytics hâlâ yok.
 
   Özellik listesi `.claude/docs/02-feature-matrix.md` içinde [x] işaretli,
   koddan doğrulanmış maddelerden türetildi. Yarım kalan ([~]) veya arayüze
@@ -301,12 +307,12 @@
 
     <p class="version">
       <span class="dot" aria-hidden="true"></span>
-      <span lang="tr">Güncel sürüm 0.1.5 (yapı 7)</span>
-      <span lang="en">Current release 0.1.5 (build 7)</span>
+      <span lang="tr" id="v-tr">Güncel sürüm 0.1.6 (yapı 8)</span>
+      <span lang="en" id="v-en">Current release 0.1.6 (build 8)</span>
     </p>
 
     <div class="cta">
-      <a class="btn" href="https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.5/nfc_toolkit-v0.1.5+7.apk">
+      <a class="btn" id="dl" href="https://github.com/FurkanTahaBademci/NFCWrite/releases/download/v0.1.6/nfc_toolkit-v0.1.6+8.apk">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M4.5 19.5h15"/>
@@ -542,8 +548,8 @@
     </ol>
 
     <p class="hash">
-      SHA-256 · nfc_toolkit-v0.1.5+7.apk<br>
-      df63c460a1de1b8fccf4dc9563cd17dab47a50b002c2525b7a6527f399304ec0
+      SHA-256 · <span id="apk-name">nfc_toolkit-v0.1.6+8.apk</span><br>
+      <span id="apk-sha">b621b7ce3c4ac2297c9f5936b65511aa27c96c4d0bde4de0e4c5ca65d7dce0f1</span>
     </p>
 
     <p class="note" style="margin-top:.9rem">
@@ -564,31 +570,37 @@
 
   <section>
     <h2><span class="num" aria-hidden="true">4</span>
-      <span lang="tr">Sürüm 0.1.5'te neler var?</span>
-      <span lang="en">What's in release 0.1.5</span></h2>
+      <span lang="tr" id="cl-head-tr">Sürüm 0.1.6 — neler var?</span>
+      <span lang="en" id="cl-head-en">What's in release 0.1.6</span></h2>
 
     <div class="card">
-      <ul class="changelog" lang="tr">
-        <li>MIFARE Classic magic (Gen2/CUID) kart klonlama ve sektör 0 / blok yazma araçları</li>
-        <li>MIFARE Classic bellek dökümü + varsayılan anahtar taraması, ICODE SLIX/SLIX2 tanımlama</li>
-        <li>Sürekli tarama modu ve kayıt içeriği eylemleri (bağlantı / ara / e-posta / harita / Wi-Fi / vCard)</li>
-        <li>Geçmiş arama + filtreler, döküm arşivi, JSON dışa/içe aktarma</li>
-        <li>iPhone uyumlu vCard paylaşımı ve genişletilmiş yazma kayıt tipleri</li>
+      <ul class="changelog" lang="tr" id="cl-tr">
+        <li>Wi-Fi ağı kayıt tipi: etikete SSID + parola yazın, dokunan telefon ağa bağlanmayı önersin</li>
+        <li>"Yazdıktan sonra kilitle" artık çalışıyor — çift onaylı, geri alınamaz</li>
+        <li>Yazma listesi otomatik saklanıyor; uygulamayı kapatsanız da kaybolmuyor</li>
+        <li>Yıkıcı işlemlerden önce otomatik tam yedek alınıyor, yedek alınamazsa işlem iptal</li>
+        <li>Okuma ekranında yapılandırma, kilit durumu ve orijinallik imzası bölümleri</li>
+        <li>MIFARE Classic varsayılan anahtar taraması araç listesinden kullanılabilir</li>
+        <li>Yeni uygulama ikonu ve Android 13+ temalı ikon desteği</li>
+        <li>Uygulama açıkken etiket okutulunca çıkan "uygulama seçin" bildirimi giderildi</li>
       </ul>
-      <ul class="changelog" lang="en">
-        <li>MIFARE Classic magic (Gen2/CUID) cloning plus sector 0 / block write tools</li>
-        <li>MIFARE Classic memory dump + default key scan, ICODE SLIX/SLIX2 identification</li>
-        <li>Continuous scan mode and record content actions (link / call / email / map / Wi-Fi / vCard)</li>
-        <li>History search + filters, dump archive, JSON export/import</li>
-        <li>iPhone-compatible vCard sharing and more write record types</li>
+      <ul class="changelog" lang="en" id="cl-en">
+        <li>Wi-Fi network record type: write SSID + password to a tag and let a phone offer to join</li>
+        <li>"Lock after write" now works — double-confirmed and irreversible</li>
+        <li>The write list is saved automatically and survives closing the app</li>
+        <li>Automatic full backup before destructive operations; the operation is cancelled if it fails</li>
+        <li>Configuration, lock status and originality signature sections on the read screen</li>
+        <li>MIFARE Classic default key scan is available from the tool list</li>
+        <li>New app icon with Android 13+ themed icon support</li>
+        <li>Fixed the "open with" prompt when tapping a tag while the app was open</li>
       </ul>
     </div>
   </section>
 
   <footer>
     <span>
-      <span lang="tr">NFC Toolkit · sürüm 0.1.5+7 · Flutter ile yazıldı</span>
-      <span lang="en">NFC Toolkit · version 0.1.5+7 · built with Flutter</span>
+      <span lang="tr" id="foot-tr">NFC Toolkit · sürüm 0.1.6+8 · Flutter ile yazıldı</span>
+      <span lang="en" id="foot-en">NFC Toolkit · version 0.1.6+8 · built with Flutter</span>
     </span>
     <span>
       <a href="https://github.com/FurkanTahaBademci/NFCWrite">GitHub</a> ·
@@ -650,6 +662,91 @@
   })();
 
   apply(pickLang());
+
+  // -------------------------------------------------------------------
+  // Sürüm bilgisini manifestten çek
+  // -------------------------------------------------------------------
+  //
+  // Tek doğruluk kaynağı `releases/version.json` — uygulamanın güncelleme
+  // denetimi de aynı dosyayı okur. Sayfadaki sürüm/APK/SHA/değişiklik
+  // listesi buradan doldurulur, böylece sürüm çıkarken tek dosya yeterli.
+  //
+  // HTML'deki değerler **yedek**tir: istek başarısız olursa (çevrimdışı,
+  // CORS, bozuk JSON) sayfa son bilinen sürümü göstermeye devam eder,
+  // hiçbir şey boşalmaz. Bu yüzden yedeği de güncel tutmak iyi olur ama
+  // zorunlu değildir.
+  var MANIFEST =
+    'https://raw.githubusercontent.com/FurkanTahaBademci/NFCWrite/main/releases/version.json';
+
+  /** "- madde" satırlarını <li> listesine çevirir. */
+  function fillList(ul, notes) {
+    var items = String(notes || '')
+      .split('\n')
+      .map(function (line) { return line.replace(/^\s*[-*]\s*/, '').trim(); })
+      .filter(function (line) { return line.length > 0; });
+    if (!items.length) return;
+
+    ul.textContent = '';
+    items.forEach(function (text) {
+      var li = document.createElement('li');
+      // Uzak içerik: her zaman textContent — asla innerHTML.
+      li.textContent = text;
+      ul.appendChild(li);
+    });
+  }
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function syncVersion(data) {
+    var version = data.version;
+    var build = data.buildNumber;
+    var url = String(data.apkUrl || '');
+    var sha = String(data.sha256 || '').toLowerCase();
+
+    // Yedeği bozmaktansa hiç dokunmamak yeğdir — her alanı doğrula.
+    if (typeof version !== 'string' || !version.trim()) return;
+    if (typeof build !== 'number' || build < 1) return;
+    if (!/^[0-9a-f]{64}$/.test(sha)) return;
+
+    // APK bağlantısı yalnızca kendi sürüm sayfamıza gidebilir; manifest
+    // ele geçse bile sayfa yabancı bir indirmeye yönlendirmesin.
+    var parsed;
+    try { parsed = new URL(url); } catch (e) { return; }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com') return;
+    if (parsed.pathname.indexOf('/FurkanTahaBademci/NFCWrite/releases/') !== 0) return;
+
+    setText('v-tr', 'Güncel sürüm ' + version + ' (yapı ' + build + ')');
+    setText('v-en', 'Current release ' + version + ' (build ' + build + ')');
+    setText('foot-tr', 'NFC Toolkit · sürüm ' + version + '+' + build + ' · Flutter ile yazıldı');
+    setText('foot-en', 'NFC Toolkit · version ' + version + '+' + build + ' · built with Flutter');
+    // Tire bilerek: Türkçe bulunma eki sürümün son hanesine göre değişir
+    // ("0.1.6'da" ama "0.1.5'te"), tire her sürümde doğru kalır.
+    setText('cl-head-tr', 'Sürüm ' + version + ' — neler var?');
+    setText('cl-head-en', 'What’s in release ' + version);
+
+    var dl = document.getElementById('dl');
+    if (dl) dl.href = parsed.href;
+
+    var name = decodeURIComponent(parsed.pathname.split('/').pop() || '');
+    if (name) setText('apk-name', name);
+    setText('apk-sha', sha);
+
+    var tr = document.getElementById('cl-tr');
+    var en = document.getElementById('cl-en');
+    if (tr) fillList(tr, data.releaseNotes);
+    // releaseNotesEn yalnızca bu sayfa için; uygulama bu alanı yok sayar.
+    if (en && data.releaseNotesEn) fillList(en, data.releaseNotesEn);
+  }
+
+  if (window.fetch) {
+    fetch(MANIFEST, { mode: 'cors', credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { if (data) syncVersion(data); })
+      .catch(function () { /* yedek içerik zaten sayfada duruyor */ });
+  }
 })();
 </script>
 </body>
