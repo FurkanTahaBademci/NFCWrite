@@ -25,6 +25,16 @@ bölümüne bak.
 
 ## Kayıt
 
+- [ADR] 2026-08-07 · **ADR-0006 — vCard çözücü adresi kalıcı sözleşme ilan
+  edildi.** `VCardShareLink.defaultBaseUrl` fiziksel kartlara kalıcı yazıldığı
+  için, kodda tek satır değişmeden dört GitHub işlemi (hesap kapatma/yeniden
+  adlandırma, repo'yu private yapma, repo adını değiştirme, Pages'in ücretsiz
+  katmandan kalkması) sahadaki **tüm kartları geri dönüşsüz** kırar. Repo adı ve
+  hesap adı artık üretim altyapısı sayılıyor. Kalıcı çözüm (kendi alan adı +
+  CNAME) **açık madde**; maliyeti dağıtılmış kart sayısıyla büyüdüğü için
+  penceresi kapanan bir karar — şu an kartlar 3-4 kişide ·
+  .claude/docs/adr/ADR-0006-resolver-url-permanence.md
+
 - [T2/T3/T4] 2026-08-06 · **Denetim bulgularının ilk beşi kapatıldı.**
   (1) **T4.46 — ADR-0005 2. kapısı uygulandı:** `_ensureBackup`/`_saveBackup`
   ile her yıkıcı işlem, "Etiketi kopyala" ve "Magic kart klonla" öncesinde
