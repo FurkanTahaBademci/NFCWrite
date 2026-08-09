@@ -259,12 +259,13 @@ class _WritePageState extends ConsumerState<WritePage> {
     controller.updateRecord(index: index, content: updated);
 
     // vCard değiştiyse iPhone uyumluluk bağlantısı bayatlamasın: listedeki
-    // ilk VCardShareLink kaydını yeni içerikle güncelle.
+    // ilk VCardShareLink kaydını yeni içerikle güncelle. Tanıma eski çözücü
+    // adreslerini de kapsamalı — diskten geri yüklenen taslak eski adresli
+    // bir kayıt taşıyorsa, kaçırılırsa karta bayat kişi verisi yazılır.
     if (updated is VCardContent) {
       final records = ref.read(writeControllerProvider).records;
       final linkIndex = records.indexWhere(
-        (r) =>
-            r is UriContent && r.uri.startsWith(VCardShareLink.defaultBaseUrl),
+        (r) => r is UriContent && VCardShareLink.isShareLink(r.uri),
       );
       if (linkIndex >= 0) {
         controller.updateRecord(
@@ -332,7 +333,7 @@ class _WritePageState extends ConsumerState<WritePage> {
 
   static String _labelFor(NdefContent content) => switch (content) {
     TextContent() => 'Metin',
-    UriContent(:final uri) when uri.startsWith(VCardShareLink.defaultBaseUrl) =>
+    UriContent(:final uri) when VCardShareLink.isShareLink(uri) =>
       'iPhone kişi bağlantısı',
     UriContent() => 'Bağlantı',
     VCardContent() => 'vCard',

@@ -146,6 +146,43 @@ void main() {
       expect(VCardShareLink.tryParse('https://ornek.com/v/#'), isNull);
       expect(VCardShareLink.tryParse('https://ornek.com/v/#%%%'), isNull);
     });
+
+    test('uretim yalnizca aktif adresi kullanir', () {
+      final url = VCardShareLink.build(content);
+      expect(url, startsWith('https://nfckart.github.io/v/'));
+      for (final legacy in VCardShareLink.legacyBaseUrls) {
+        expect(url, isNot(startsWith(legacy)));
+      }
+    });
+
+    test('isShareLink aktif adresi tanir', () {
+      expect(VCardShareLink.isShareLink(VCardShareLink.build(content)), isTrue);
+    });
+
+    test('isShareLink eski adresleri de tanir', () {
+      // Diskten geri yuklenen taslaklar ve sahadaki kartlar eski adresi
+      // tasiyor; kacirilirsa duzenlenen vCard'in baglantisi bayat kalir.
+      for (final legacy in VCardShareLink.legacyBaseUrls) {
+        expect(VCardShareLink.isShareLink('$legacy#ABC'), isTrue);
+      }
+    });
+
+    test('isShareLink yabanci adresi tanimaz', () {
+      expect(VCardShareLink.isShareLink('https://ornek.com/v/#ABC'), isFalse);
+      expect(
+        VCardShareLink.isShareLink('https://nfckart.github.io.evil.com/v/#A'),
+        isFalse,
+      );
+    });
+
+    test('eski adresli baglantilar hala cozulebilir', () {
+      // Eski kartlar geri toplanamaz: tryParse onlari cozmeye devam etmeli.
+      final url = VCardShareLink.build(
+        content,
+        baseUrl: VCardShareLink.legacyBaseUrls.first,
+      );
+      expect(VCardShareLink.tryParse(url), content);
+    });
   });
 
   group('Ikili kodlayici', () {

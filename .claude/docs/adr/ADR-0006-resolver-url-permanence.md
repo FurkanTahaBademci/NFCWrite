@@ -1,8 +1,13 @@
 # ADR-0006 — vCard çözücü adresi kalıcı bir sözleşmedir
 
-**Durum:** Kabul edildi · 2026-08-07
+**Durum:** Kabul edildi · 2026-08-07 · **güncellendi 2026-08-10 (geçiş yapıldı)**
 **İlgili:** `packages/services/ndef_codec/lib/src/vcard_share_link.dart`,
-`docs/v/index.html`
+`docs/v/index.html`, `nfckart/nfckart.github.io` deposu
+
+> **2026-08-10 — Adres taşındı.** Aktif adres artık
+> `https://nfckart.github.io/v/`. Eski adres kalıcı köprüde bırakıldı.
+> Ayrıntı: aşağıdaki *"Geçiş — 2026-08-10"* bölümü. Bu bölümden önceki
+> metin, geçiş öncesi durumu ve kararın gerekçesini kaydeder.
 
 ## Bağlam
 
@@ -86,3 +91,75 @@ Yani 3. madde ertelenebilir bir iyileştirme değil, **penceresi kapanan** bir k
 **Repo adı, hesap adı ve Pages yayın durumu üretim altyapısıdır.**
 Bunlara dokunan bir değişiklik, ADR-0005'teki yıkıcı NFC işlemleriyle aynı
 ciddiyette ele alınır: önce geçiş planı, sonra işlem.
+
+---
+
+## Geçiş — 2026-08-10
+
+### Neden
+
+Adres, sahibinin gerçek adını taşıyordu (`furkantahabademci.github.io`).
+Karta dokunan herkes tarayıcının adres çubuğunda bunu görüyordu. Çözücü
+sayfa, adı taşımayan ayrı bir hesaba (`nfckart`) taşındı.
+
+Zamanlama bu ADR'nin *"Zamanlama"* bölümüne göre seçildi: kartlar hâlâ
+3-4 kişideydi, yani geçişin maliyeti pratikte sıfırdı. Pencere kapanmadan
+hareket edildi.
+
+### Yapılan
+
+| | Önce | Sonra |
+|---|---|---|
+| Aktif adres | `furkantahabademci.github.io/NFCWrite/v/` | **`nfckart.github.io/v/`** |
+| Eski adres | çözücü | **köprü** — fragment'ı koruyarak yeni adrese yönlendirir |
+| Barındırma | uygulama deposu (`docs/v/`) | ayrı depo (`nfckart/nfckart.github.io`) |
+
+Depo adı bilerek `nfckart.github.io` seçildi: GitHub bu adı *user site*
+olarak yayınlar ve yoldan repo adını düşürür. NDEF URI kaydında saklanan
+bayt 39'dan 20'ye indi — kart başına 19 bayt kazanç.
+
+### Madde 4'e uygunluk
+
+Geçiş geriye dönük uyumludur: yeni adres yalnızca yeni kartlara yazılır,
+eski adres kapatılmadı. Eski kartlar çalışmaya devam ediyor.
+
+Yönlendirme **zorunlu olarak istemci tarafındadır.** Kişi verisi `#`
+fragment'ında taşınır ve fragment tarayıcıdan sunucuya hiç gitmez; sunucu
+tarafı bir 301 veriyi taşıyamazdı. GitHub Pages zaten statik sunucudur ve
+yönlendirme kuralı desteklemez. Tek doğru biçim:
+`location.replace(yeniAdres + location.hash)`.
+
+### Kodda karşılığı
+
+`VCardShareLink` artık **üretim** ile **tanımayı** ayırıyor:
+
+- `defaultBaseUrl` — yeni kartlara yazılan tek adres.
+- `legacyBaseUrls` — artık yazılmayan, ama çözülmesi gereken adresler.
+- `isShareLink(url)` — tanıma **her zaman** buradan yapılır.
+
+Bu ayrım şart, çünkü eski adres yalnızca sahadaki kartlarda değil
+**diskte** de yaşıyor: `WriteDraftStore` yazma taslağını ve şablonları ham
+NDEF yükü olarak saklıyor, dolayısıyla eski adresli bir URI kaydı uygulama
+güncellemesinden sağ çıkıp geri yükleniyor. `startsWith(defaultBaseUrl)`
+ile tanıma yapan kod bunu kaçırır ve düzenlenen vCard'ın bağlantısı bayat
+kalır — kart, MIME kaydında yeni kişiyi, URI kaydında eski kişiyi taşır.
+
+### Yasak işlemler artık iki hesabı birden kapsıyor
+
+Bu ADR'nin *"Karar"* bölümündeki 2. madde (yeniden adlandırma, private'a
+alma, hesap adı değişikliği, hesap silme) **her iki hesap için** geçerlidir:
+
+| Hesap / depo | Neyi taşıyor | Düşerse |
+|---|---|---|
+| `nfckart/nfckart.github.io` | aktif çözücü | tüm yeni kartlar kırılır |
+| `FurkanTahaBademci/NFCWrite` | eski adres köprüsü | tüm eski kartlar kırılır |
+
+Geçiş, tek nokta arızayı **ikiye çıkardı** — bu, geçişin kabul edilen
+bedelidir. Her iki hesapta da 2FA ve kurtarma kodları zorunludur.
+
+### Madde 3 hâlâ açık
+
+Kendi alan adı alınmadı. Yukarıdaki tablo tam olarak 3. maddenin çözdüğü
+sorundur: CNAME kurulsaydı barındırma sağlayıcısı değiştirilebilir olurdu
+ve hesap adı üretim altyapısı olmaktan çıkardı. Karar ertelendi; maliyeti
+her yeni kartla büyümeye devam ediyor.

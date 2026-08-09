@@ -18,12 +18,37 @@ import 'ndef_converter.dart';
 /// kartin uzerinde yasar; sayfa yalnizca istemci tarafinda cozer ve
 /// "Kisilere Ekle" (.vcf) dosyasi sunar.
 abstract final class VCardShareLink {
-  /// GitHub Pages uzerindeki cozucu sayfa (`docs/v/index.html`).
+  /// Aktif cozucu sayfa. **Yeni kartlara yalnizca bu adres yazilir.**
   ///
   /// Fiziksel kartlara kalici yazildigi icin bu adres degistirilirse
-  /// sahadaki eski kartlar kirilir — degistirme.
-  static const String defaultBaseUrl =
-      'https://furkantahabademci.github.io/NFCWrite/v/';
+  /// sahadaki eski kartlar kirilir — degistirme. Degistirmek zorunda
+  /// kalirsan eskisini [legacyBaseUrls] listesine tasi ve eski adresi
+  /// ayakta birak; kapatmak gecis degil kirilmadir.
+  static const String defaultBaseUrl = 'https://nfckart.github.io/v/';
+
+  /// Artik uretilmeyen, ama hala cozulmesi gereken eski cozucu adresleri.
+  ///
+  /// Bu adresler iki yerde yasamaya devam eder:
+  /// 1. Sahadaki fiziksel kartlarda — geri toplanamazlar.
+  /// 2. Diske yazilmis yazma taslaklarinda ve kayitli sablonlarda —
+  ///    `WriteDraftStore` kayitlari ham NDEF yuku olarak sakladigi icin
+  ///    eski adresli bir URI kaydi uygulama guncellemesinden sag cikar.
+  ///
+  /// Bu yuzden TANIMA her zaman [isShareLink] uzerinden yapilmalidir;
+  /// `startsWith(defaultBaseUrl)` eski kayitlari gozden kacirir.
+  static const List<String> legacyBaseUrls = <String>[
+    // 2026-08-10'da nfckart.github.io/v/ adresine tasindi. Eski adres
+    // koprude birakildi: fragment'i koruyarak yeni adrese yonlendirir.
+    'https://furkantahabademci.github.io/NFCWrite/v/',
+  ];
+
+  /// [url] bu sinifin urettigi bir cozucu baglantisi mi?
+  ///
+  /// Eski adresleri de kapsar. Uretim yalnizca [defaultBaseUrl] kullanir,
+  /// tanima ise her zaman bu metotla yapilir.
+  static bool isShareLink(String url) =>
+      url.startsWith(defaultBaseUrl) ||
+      legacyBaseUrls.any((legacy) => url.startsWith(legacy));
 
   /// [content] icin cozucu sayfa baglantisi uretir.
   static String build(

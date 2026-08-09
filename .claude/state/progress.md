@@ -25,6 +25,21 @@ bölümüne bak.
 
 ## Kayıt
 
+- [ADR] 2026-08-10 · **Çözücü adresi taşındı — ADR-0006 güncellendi.** Aktif
+  adres artık `https://nfckart.github.io/v/` (ayrı depo:
+  `nfckart/nfckart.github.io`, *user site* olduğu için yolda repo adı yok →
+  NDEF'te 39 yerine 20 bayt). Eski adres **kalıcı köprüde**: fragment'ı
+  koruyarak yeni adrese yönlendirir, kapatılamaz. Yönlendirme zorunlu olarak
+  istemci tarafında — fragment sunucuya gitmediği için 301 veriyi taşıyamazdı,
+  GitHub Pages zaten statik. `VCardShareLink` artık üretimi (`defaultBaseUrl`)
+  ve tanımayı (`legacyBaseUrls` + `isShareLink`) ayırıyor; tanıma eski adresi
+  görmek zorunda çünkü `WriteDraftStore` taslakları ham NDEF olarak sakladığı
+  için eski adresli kayıtlar güncellemeden sağ çıkıyor. **Yasak işlemler artık
+  iki hesabı birden kapsıyor** (biri düşerse yeni, diğeri düşerse eski kartlar
+  kırılır); ikisinde de 2FA zorunlu. Kendi alan adı hâlâ **açık madde** ·
+  `packages/services/ndef_codec/lib/src/vcard_share_link.dart`,
+  `packages/features/feature_write/lib/src/presentation/pages/write_page.dart`,
+  `docs/v/index.html`, `.claude/docs/adr/ADR-0006-resolver-url-permanence.md`
 - [ADR] 2026-08-07 · **ADR-0006 — vCard çözücü adresi kalıcı sözleşme ilan
   edildi.** `VCardShareLink.defaultBaseUrl` fiziksel kartlara kalıcı yazıldığı
   için, kodda tek satır değişmeden dört GitHub işlemi (hesap kapatma/yeniden
@@ -179,6 +194,9 @@ Başka track'i etkileyen bir değişiklik yaptıysan buraya yaz.
   (`https://furkantahabademci.github.io/NFCWrite/v/`) — tasima, silme,
   URL'ini degistirme. `RecordTypeSheet.show` artik `List<NdefContent>?`
   donduruyor (vCard sihirbazi cift kayit uretebilir).
+  **2026-08-10 notu:** cozucu `nfckart.github.io/v/` adresine tasindi;
+  `docs/v/index.html` artik cozucu degil **kopru** (yonlendirme). Yine de
+  silinemez/tasinamaz — eski kartlar bu yola bagli.
 - T1 (2026-08-03): `apps/nfc_toolkit` artik `HistoryRepositoryImpl`,
   `DumpRepositoryImpl`, `TemplateRepositoryImpl` ve `SettingsRepositoryImpl`
   ile calisiyor; feature katmanlari API degisikligi olmadan kalici veri

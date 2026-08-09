@@ -63,7 +63,7 @@ Arayüzdeki seçicide (`record_type_sheet.dart`) **15 tip** var.
 | B7 | SMS (numara + mesaj) | `sms:` URI | [x] | |
 | B8 | E-posta (adres + konu + gövde) | `mailto:` URI | [x] | |
 | B9 | Kişi kartı (vCard 3.0) | MIME `text/vcard` | [x] | + iPhone uyumlu çift kayıt (bkz. B9a) |
-| B9a | vCard iPhone uyumluluğu | URI + MIME çifti | [x] | `VCardShareLink` + `docs/v/index.html` çözücü sayfası |
+| B9a | vCard iPhone uyumluluğu | URI + MIME çifti | [x] | `VCardShareLink` + `nfckart.github.io/v/` çözücü sayfası (`docs/v/index.html` eski adres köprüsü — bkz. ADR-0006) |
 | B10 | Konum (enlem/boylam) | `geo:` URI | [x] | |
 | B11 | Adres (arama sorgusu olarak harita) | URI | [x] | |
 | B12 | **WiFi ağı (SSID, şifreleme, parola)** | MIME `application/vnd.wfa.wsc` | [x] | `WifiWscCodec` + `WifiContent` + sihirbaz. 5 auth tipi, parola doğrulama, SSID 32 byte sınırı. Okuma tarafı da `WifiContent` üzerinden zenginleşti. 8 test |
