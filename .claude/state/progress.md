@@ -25,6 +25,20 @@ bölümüne bak.
 
 ## Kayıt
 
+- [RELEASE] 2026-08-10 · **v0.1.7+9 yayınlandı.** Release keystore
+  (`~/.keystores/nfc_toolkit-release.jks`, a6e46b4'te oluşturulmuştu) bu
+  makinede bulunamadı — kayıp. **Yeni bir release anahtarıyla imzalandı**,
+  bu da v0.1.6'daki gibi mevcut kurulumlar için zorunlu kaldır/yeniden kur
+  gerektiriyor (release notlarında belirtildi). Yeni anahtar
+  `~/.keystores/nfc_toolkit-release.jks` altında; **bu kez düzgün
+  yedeklenmeli** (parola yöneticisi / bulut yedek), yoksa her yayın
+  öncesi tekrar eder. `tools/prepare_release.sh` ile manifest üretildi,
+  imza `apksigner`/`aapt` ile elle doğrulandı (script içindeki
+  `command -v apksigner`/`aapt2` bu makinede PATH'te bulamadı — betik
+  tam yol arasa daha sağlam olur). GitHub release: `v0.1.7`,
+  asset `nfc_toolkit-v0.1.7+9.apk` · releases/version.json,
+  apps/nfc_toolkit/android/key.properties (repo dışı)
+
 - [ADR] 2026-08-10 · **Çözücü adresi taşındı — ADR-0006 güncellendi.** Aktif
   adres artık `https://nfckart.github.io/v/` (ayrı depo:
   `nfckart/nfckart.github.io`, *user site* olduğu için yolda repo adı yok →
