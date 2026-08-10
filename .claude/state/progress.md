@@ -25,6 +25,20 @@ bölümüne bak.
 
 ## Kayıt
 
+- [T3] 2026-08-10 · **T3.25a Google İşletme Yorumu kaydı eklendi.** Yeni
+  "arama" tabanlı URI kayıt tipi: kullanıcı işletme adını girer, kayıt
+  `https://www.google.com/search?q=<ad>+yorum` biçiminde yazılır. Kart
+  okunduğunda telefon Google aramasını açar; kullanıcı sonuçlardan kendi
+  işletmesini seçip yorum ekranına oradan ulaşır — sabit bir Place ID /
+  `g.page/r/.../review` bağlantısı **yazılmıyor**, bu yüzden ADR-0006'daki
+  "kalıcı adrese kilitlenme" riskine girmiyor. Diğer URI tiplerle
+  (Play Store, Instagram) aynı desen: `_EditorConfig` fabrikası +
+  `_RecordTypeOption` girişi + `_editorForUri` düzenleme tanıma (aynı
+  `search?q=` önekini generic "Arama" tipiyle paylaştığı için ayrım " yorum"
+  son ekiyle yapılıyor ve kontrol generic aramadan **önce** çalışıyor).
+  `flutter analyze` ve `flutter test` (feature_write, 9/9) temiz ·
+  packages/features/feature_write/lib/src/presentation/widgets/record_type_sheet.dart
+
 - [RELEASE] 2026-08-10 · **v0.1.7+9 yayınlandı.** Release keystore
   (`~/.keystores/nfc_toolkit-release.jks`, a6e46b4'te oluşturulmuştu) bu
   makinede bulunamadı — kayıp. **Yeni bir release anahtarıyla imzalandı**,

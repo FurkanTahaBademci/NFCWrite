@@ -76,6 +76,12 @@ packages/services/ndef_codec/**
 - [ ] T3.24 **AAR** (`android.com:pkg`) — uygulama başlatma.
       `ExternalContent` kodlayıcısı hazır, yalnızca sihirbaz gerekiyor
 - [x] T3.25 Play Store bağlantısı
+- [x] T3.25a **Google İşletme Yorumu** — Place ID gerektirmeyen, arama
+      tabanlı yaklaşım: işletme adı `https://www.google.com/search?q=`
+      sorgusuna " yorum" eklenerek gönderilir; kullanıcı arama sonuçlarından
+      kendi işletmesini seçip yorum alanını açar. Doğrudan `g.page/r/.../review`
+      gibi kalıcı bir bağlantı yazılmıyor — bkz. ADR-0006'daki kalıcı-adres
+      riski, aynı tuzağa düşülmedi
 - [!] T3.26 Özel MIME — `MimeContent` codec'i **hazır ve testli**, sihirbaz UI'ı yok
 - [!] T3.27 Harici tip (URN, TNF 4) — `ExternalContent` **hazır**, UI yok
 - [!] T3.28 Ham / bilinmeyen (TNF 5) — `RawContent` **hazır**, UI yok

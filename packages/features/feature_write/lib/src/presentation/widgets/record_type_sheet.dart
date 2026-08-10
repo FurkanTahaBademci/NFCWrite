@@ -62,6 +62,19 @@ abstract final class RecordTypeSheet {
       return _EditorLaunch(_EditorConfig.geo(), uri.substring(4));
     }
 
+    const googleReviewSuffix = ' yorum';
+    const googleReviewPrefix = 'https://www.google.com/search?q=';
+    if (uri.startsWith(googleReviewPrefix) &&
+        uri.endsWith(Uri.encodeQueryComponent(googleReviewSuffix))) {
+      final query = Uri.decodeQueryComponent(
+        uri.substring(googleReviewPrefix.length),
+      );
+      return _EditorLaunch(
+        _EditorConfig.googleReview(),
+        query.substring(0, query.length - googleReviewSuffix.length),
+      );
+    }
+
     const searchPrefix = 'https://www.google.com/search?q=';
     if (uri.startsWith(searchPrefix)) {
       return _EditorLaunch(
@@ -349,6 +362,20 @@ class _RecordTypePageState extends State<_RecordTypePage> {
       subtitle: 'Kullanıcı adına göre profil bağlantısı',
       searchTerms: const <String>['instagram', 'social', 'profil'],
       onTap: () => _openEditor(context, _EditorConfig.instagram()),
+    ),
+    _RecordTypeOption(
+      category: _RecordTypeCategory.web,
+      icon: Icons.rate_review_outlined,
+      title: 'Google İşletme Yorumu',
+      subtitle: 'İşletmeyi arattırıp yorum ekranını açar',
+      searchTerms: const <String>[
+        'google',
+        'yorum',
+        'review',
+        'işletme',
+        'business',
+      ],
+      onTap: () => _openEditor(context, _EditorConfig.googleReview()),
     ),
     _RecordTypeOption(
       category: _RecordTypeCategory.payment,
@@ -1079,6 +1106,16 @@ final class _EditorConfig {
     hint: 'kullanıcıadı',
     icon: Icons.alternate_email,
     build: (value) => UriContent('https://instagram.com/$value'),
+  );
+
+  factory _EditorConfig.googleReview() => _EditorConfig(
+    title: 'Google İşletme Yorumu',
+    label: 'İşletme adı',
+    hint: 'Örnek Kafe, Kadıköy',
+    icon: Icons.rate_review_outlined,
+    build: (value) => UriContent(
+      'https://www.google.com/search?q=${Uri.encodeQueryComponent('$value yorum')}',
+    ),
   );
 
   factory _EditorConfig.bitcoin() => _EditorConfig(

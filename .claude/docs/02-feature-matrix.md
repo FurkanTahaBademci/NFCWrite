@@ -71,6 +71,7 @@ Arayüzdeki seçicide (`record_type_sheet.dart`) **15 tip** var.
 | B14 | Bluetooth LE eşleştirme | MIME `application/vnd.bluetooth.le.oob` | [ ] | |
 | B15 | Uygulama başlat (paket adı → AAR) | TNF 4, `android.com:pkg` | [ ] | `ExternalContent` kodlayıcısı hazır — sihirbaz eklenirse çalışır |
 | B16 | Play Store bağlantısı | URI | [x] | |
+| B16a | Google İşletme Yorumu (arama tabanlı, Place ID gerektirmez) | URI | [x] | İşletme adını Google'da aratıp "yorum" ekler; kullanıcı sonuçlardan işletmesini seçip yorum alanını kendisi açar. Sabit/kırılgan bir Place ID linkine bağımlı değil |
 | B17 | Özel MIME verisi (tip + içerik) | TNF 2 | [!] | `MimeContent` kodlayıcı/çözücü **hazır**, sihirbaz UI'ı yok |
 | B18 | Harici tip (URN) | TNF 4 | [!] | `ExternalContent` **hazır**, sihirbaz UI'ı yok |
 | B19 | Ham veri (hex girişi) | TNF 5 / unknown | [!] | `RawContent` **hazır**, sihirbaz UI'ı yok |
