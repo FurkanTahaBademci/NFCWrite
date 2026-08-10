@@ -3,7 +3,7 @@ description: "NFC Toolkit - gelismis NFC okuyucu, yazici ve etiket yoneticisi."
 publish_to: 'none'
 
 # version -> Android versionName, +build -> versionCode
-version: 0.1.7+9
+version: 0.1.8+10
 
 environment:
   sdk: ^3.12.0
